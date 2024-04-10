@@ -28,8 +28,16 @@ python3 -m venv venv
 
 This will create a virtual environment in the `venv` directory. You can activate it by running:
 
+### For Linux
+
 ```bash
 source venv/bin/activate
+```
+
+### For Windows
+
+```bash
+.\venv\Scripts\activate.bat
 ```
 
 Another intuitive solution is to use [Anaconda](https://www.anaconda.com/products/distribution) which is a Python
