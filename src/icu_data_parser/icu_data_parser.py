@@ -1,5 +1,9 @@
 import os
 
+"""
+    A class used to parse ICU data files, and produce a final dataset file.
+"""
+
 
 class ICUDataParser:
     def __init__(self, logger):
@@ -10,6 +14,7 @@ class ICUDataParser:
         for file in files:
             file_name = os.path.basename(file)
             self.logger.debug(f"Parsing file {file_name} ...")
+            # Add more elif conditions here for other file types
             if file_name == "CPP.txt":
                 self.parse_cpp_file(file)
             elif file_name == "episodes with high icp.txt":
