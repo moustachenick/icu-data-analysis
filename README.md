@@ -61,7 +61,6 @@ The directory should have the following structure:
 ``` text
 data/
     CPP.txt
-    episodes with high icp.txt
     Glucose.txt
     Haemoglobin.txt
     ...
