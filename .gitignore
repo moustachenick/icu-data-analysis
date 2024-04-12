@@ -102,3 +102,9 @@ cookiecutter-pypackage-env/
 .vscode/
 *.csv
 *.~lock.*
+
+# Testing
+test/**/*.txt
+test/**/*.csv
+test*.csv
+test*.txt

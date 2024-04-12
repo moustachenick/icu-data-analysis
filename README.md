@@ -99,3 +99,25 @@ So you can also run the script with the default parameters, by running:
 ```bash
 python src/main.py
 ```
+
+## Testing
+
+The project includes some basic testing using the `pytest` package and the `unittest` module.
+
+You can run the tests by running:
+
+```bash
+python -m unittest discover tests
+```
+
+You can also run the tests with coverage by running:
+
+```bash
+coverage run -m unittest discover tests
+```
+
+You can then see the coverage report by running:
+
+```bash
+coverage report -m
+```
