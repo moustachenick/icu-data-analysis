@@ -25,6 +25,26 @@ class ICUDataParser:
         self.final_data.append(headers)
         self.column_index = {header: index for index, header in enumerate(headers)}
 
+    def parse_files(self, files):
+        self.logger.debug(f"Found {len(files)} files to parse")
+        for file in files:
+            file_name = os.path.basename(file)
+            self.logger.debug(f"Parsing file {file_name} ...")
+            if file_name.endswith(".txt"):
+                self.parse_file(file, file_name[:-4].lower().replace(" ", "_"))
+        # save the final data to a file
+        self.save_final_data()
+
+    def parse_file(self, file, column_name):
+        with open(file, 'r') as f:
+            for line in non_blank_lines(f):
+                print(line)
+                patient_id, timestamp, _, value = line.split(",")
+                patient_id = patient_id.strip().replace('"', "")
+                timestamp = timestamp.strip().replace('"', "")
+                value = value.strip().replace('"', "")
+                self.add_data_value_for_patient_at_timestamp(patient_id, timestamp, column_name, value)
+
     def add_data_value_for_patient_at_timestamp(self, patient_id, timestamp, data_type, value):
         # find the patient in the final data list
         for data in self.final_data:
@@ -44,26 +64,6 @@ class ICUDataParser:
         new_element[self.column_index[data_type]] = value
         # Append the new element to final_data
         self.final_data.append(new_element)
-
-    def parse(self, files):
-        self.logger.debug(f"Found {len(files)} files to parse")
-        for file in files:
-            file_name = os.path.basename(file)
-            self.logger.debug(f"Parsing file {file_name} ...")
-            if file_name.endswith(".txt"):
-                self.parse_file(file, file_name[:-4].lower().replace(" ", "_"))
-        # save the final data to a file
-        self.save_final_data()
-
-    def parse_file(self, file, column_name):
-        with open(file, 'r') as f:
-            for line in non_blank_lines(f):
-                print(line)
-                patient_id, timestamp, _, value = line.split(",")
-                patient_id = patient_id.strip().replace('"', "")
-                timestamp = timestamp.strip().replace('"', "")
-                value = value.strip().replace('"', "")
-                self.add_data_value_for_patient_at_timestamp(patient_id, timestamp, column_name, value)
 
     def save_final_data(self, filename='final_data.csv'):
         with open(filename, 'w', newline='') as f:
