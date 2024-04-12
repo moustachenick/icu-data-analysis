@@ -23,7 +23,7 @@ have multiple Python versions installed on your machine and you can create isola
 In order to do so, you can run the following commands:
 
 ```bash
-python3 -m venv venv
+python -m venv venv
 ```
 
 This will create a virtual environment in the `venv` directory. You can activate it by running:
