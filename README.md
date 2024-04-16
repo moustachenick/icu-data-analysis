@@ -37,7 +37,7 @@ source venv/bin/activate
 ### For Windows
 
 ```bash
-.\venv\Scripts\activate.bat
+.\venv\Scripts\activate.bat # or ./venv/Scripts/activate.bat (depending on your terminal configuration)
 ```
 
 Another intuitive solution is to use [Anaconda](https://www.anaconda.com/products/distribution) which is a Python
