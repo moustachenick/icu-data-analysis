@@ -21,6 +21,7 @@ def main(data_dir):
             if file.endswith(".txt"):
                 files_to_parse.append(root + os.sep + file)
     icu_data_parser.parse(files_to_parse)
+    return 0
 
 
 def set_up_logger(log_level):
@@ -31,7 +32,7 @@ def set_up_logger(log_level):
     # link handler to logger
     logger.addHandler(c_handler)
     # Set logging level to the logger
-    logger.setLevel(log_level)  # <-- THIS!
+    logger.setLevel(log_level)
 
 
 if __name__ == '__main__':
