@@ -35,7 +35,7 @@ def main(data_dir):
         logger.debug(f"Found file {data_dir + os.sep + file}")
         if file.endswith(".txt"):
             files_to_parse.append(data_dir + os.sep + file)
-    icu_data_parser.parse_files(files_to_parse)
+    icu_data_parser.parse(files_to_parse)
 
 
 def set_up_logger(log_level):
