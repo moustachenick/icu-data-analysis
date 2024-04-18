@@ -13,13 +13,28 @@ parser.add_argument('--dir-relative', '-dr', help="directory path is relative", 
 
 def main(data_dir):
     logger.debug(f"Scanning directory {data_dir}")
+    file_names_to_parse = [
+        "ICP.txt",
+        "CPP.txt",
+        "Glucose.txt",
+        "Haemoglobin.txt",
+        "Heart rate.txt",
+        "Mean blood pressure.txt",
+        "PaCO2.txt",
+        "PaO2.txt",
+        "PEEP.txt",
+        "PH.txt",
+        "Respiration Rate.txt",
+        "SpO2.txt",
+        "Temperature.txt",
+        "episodes with high icp.txt",
+    ]
     files_to_parse = []
     icu_data_parser = ICUDataParser(logger)
-    for root, dirs, files in os.walk(data_dir):
-        for file in files:
-            logger.debug(f"Found file {root + os.sep + file}")
-            if file.endswith(".txt"):
-                files_to_parse.append(root + os.sep + file)
+    for file in file_names_to_parse:
+        logger.debug(f"Found file {data_dir + os.sep + file}")
+        if file.endswith(".txt"):
+            files_to_parse.append(data_dir + os.sep + file)
     icu_data_parser.parse_files(files_to_parse)
 
 
