@@ -67,6 +67,7 @@ class ICUDataParser:
         ]
         self.final_data.append(headers)
         self.column_index = {header: index for index, header in enumerate(headers)}
+        self.last_known_values = {}
 
     def parse(self, files, data_dir):
         self.logger.debug(f"Found {len(files)} files to parse")
@@ -94,7 +95,7 @@ class ICUDataParser:
                 timestamp = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S")
 
                 # Round the timestamp to the nearest half hour
-                timestamp = Helpers.round_time(timestamp)
+                timestamp = Helpers.custom_round_time(timestamp)
 
                 value = value.strip().replace('"', "")
                 self.add_data_value_for_patient_at_timestamp(
@@ -109,6 +110,21 @@ class ICUDataParser:
                 patient_id = patient_id.strip().replace('"', "")
                 date_of_birth = date_of_birth.strip().replace('"', "")
                 self.add_date_of_birth_for_patient(patient_id, date_of_birth)
+    
+    def get_last_known_value(self, patient_id, data_type):
+        """
+        Retrieves the last known value and its timestamp for a given patient and data type.
+        Returns a tuple of (value, timestamp).
+        """
+        return self.last_known_values.get(patient_id, {}).get(data_type, ("", None))
+
+    def update_last_known_value(self, patient_id, data_type, value, timestamp):
+        """
+        Updates the tracking of the last known value and its timestamp for a given patient and data type.
+        """
+        if patient_id not in self.last_known_values:
+            self.last_known_values[patient_id] = {}
+        self.last_known_values[patient_id][data_type] = (value, timestamp)
 
     def add_data_value_for_patient_at_timestamp(
             self, patient_id, timestamp, data_type, value
@@ -118,7 +134,7 @@ class ICUDataParser:
             self.patient_data_map[patient_id] = {
                 "values": {},
             }
-
+    
         # check if the timestamp exists for the patient in the map
         if timestamp not in self.patient_data_map[patient_id]["values"]:
             self.patient_data_map[patient_id]["values"][timestamp] = {}
@@ -138,6 +154,29 @@ class ICUDataParser:
             self.patient_data_map[patient_id]["values"][timestamp][data_type]['value'] = average_value
             self.patient_data_map[patient_id]["values"][timestamp][data_type][
                 'num_records_processed'] = num_of_records_processed
+        
+         # Forward fill missing values 
+        if value == "-1":
+            last_value, last_timestamp = self.get_last_known_value(patient_id, data_type)
+            if last_timestamp and (timestamp - last_timestamp <= timedelta(minutes=30)):
+             value = last_value
+            else:
+             value = "-1"
+
+         # Update last known value only if it's not missing
+        if value != "-1":
+            self.update_last_known_value(patient_id, data_type, value, timestamp)
+
+        # Check for special handling variables
+        special_handling_variables = ["glucose", "haemoglobin", "paco2", "pao2", "ph"]
+        if data_type in special_handling_variables and value == "-1":
+            last_value, last_timestamp = self.get_last_known_value(patient_id, data_type)
+            # Check if the last known value is from the same day
+            if last_timestamp and last_timestamp.date() == timestamp.date():
+                 value = last_value
+            else:
+                 value = "-1"  # No valid last known value from the same day
+
 
     def add_date_of_birth_for_patient(self, patient_id, date_of_birth):
         # check if the patient exists in the map
@@ -150,7 +189,9 @@ class ICUDataParser:
     def create_final_data(self):
         # Iterate over the patient_data_map
         for patient_id, patient_data in self.patient_data_map.items():
-            for timestamp, data_types in patient_data["values"].items():
+            sorted_timestamps = sorted(patient_data["values"].keys())
+            for timestamp in sorted_timestamps:
+                data_types = patient_data["values"][timestamp]
                 # Create a new row for each timestamp, initialize it with -1
                 row = [-1] * len(self.final_data[0])
                 row[self.column_index['patient_id']] = patient_id
@@ -158,6 +199,9 @@ class ICUDataParser:
                 # Add the data values for each data type
                 for data_type, data in data_types.items():
                     row[self.column_index[data_type]] = data['value']
+                current_value = data_types.get(data_type, {'value': '-1'})['value']    
+                row[self.column_index[data_type]] = current_value if current_value != '-1' else "-1"
+
                 # Add the date of birth
                 row[self.column_index['date_of_birth']] = patient_data['date_of_birth']
                 # Add the row to the final_data list
@@ -172,14 +216,19 @@ class ICUDataParser:
 
 class Helpers:
     @staticmethod
-    def round_time(dt, minutes=30):
+    def custom_round_time(dt):
         """
-        Rounds a datetime object to its nearest half hour.
+        Custom rounding:
+        - :46 to :15 -> round down to :00 of the current hour
+        - :16 to :45 -> round up to :30 of the current hour
         """
-        round_to = timedelta(minutes=minutes)
-        seconds = (dt.replace(tzinfo=None) - dt.min).seconds
-        rounding = (seconds + round_to.seconds / 2) // round_to.seconds * round_to.seconds
-        return dt + timedelta(0, rounding - seconds, -dt.microsecond)
+        if dt.minute >= 46 or dt.minute <= 15:
+            # Round down to the hour
+            return dt.replace(minute=0, second=0, microsecond=0)
+        elif 16 <= dt.minute <= 45:
+            # Round to half past the hour
+            return dt.replace(minute=30, second=0, microsecond=0)
+        return dt
 
     @staticmethod
     def non_blank_lines(f):
