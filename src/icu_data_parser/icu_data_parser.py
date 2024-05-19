@@ -80,11 +80,13 @@ class ICUDataParser:
                 self.parse_file(file, file_name[:-4].lower().replace(" ", "_"))
         # Create the final data
         self.create_final_data()
+        # Fix missing values
+        self.fix_missing_values()
         # save the final data to a file
         self.save_final_data(data_dir)
 
     def parse_file(self, file, column_name):
-        with open(file, "r", encoding='utf-8-sig') as f:
+        with open(file, "r", encoding="utf-8-sig") as f:
             for line in Helpers.non_blank_lines(f):
                 self.logger.debug(f"Processing line: {line}")
                 patient_id, timestamp, _, value = line.split(",")
@@ -103,14 +105,14 @@ class ICUDataParser:
                 )
 
     def parse_episodes_with_high_icp(self, file):
-        with open(file, "r", encoding='utf-8-sig') as f:
+        with open(file, "r", encoding="utf-8-sig") as f:
             for line in Helpers.non_blank_lines(f):
                 self.logger.debug(f"Processing line: {line}")
                 patient_id, date_of_birth, _, _, _, _, _, _ = line.split(",")
                 patient_id = patient_id.strip().replace('"', "")
                 date_of_birth = date_of_birth.strip().replace('"', "")
                 self.add_date_of_birth_for_patient(patient_id, date_of_birth)
-    
+
     def get_last_known_value(self, patient_id, data_type):
         """
         Retrieves the last known value and its timestamp for a given patient and data type.
@@ -127,14 +129,14 @@ class ICUDataParser:
         self.last_known_values[patient_id][data_type] = (value, timestamp)
 
     def add_data_value_for_patient_at_timestamp(
-            self, patient_id, timestamp, data_type, value
+        self, patient_id, timestamp, data_type, value
     ):
         # check if the patient exists in the map
         if patient_id not in self.patient_data_map:
             self.patient_data_map[patient_id] = {
                 "values": {},
             }
-    
+
         # check if the timestamp exists for the patient in the map
         if timestamp not in self.patient_data_map[patient_id]["values"]:
             self.patient_data_map[patient_id]["values"][timestamp] = {}
@@ -142,41 +144,50 @@ class ICUDataParser:
         # check if the data type exists for the timestamp of the patient in the map
         if data_type not in self.patient_data_map[patient_id]["values"][timestamp]:
             self.patient_data_map[patient_id]["values"][timestamp][data_type] = {
-                'value': value,
-                'num_records_processed': 1
+                "value": value,
+                "num_records_processed": 1,
             }
         else:
             # if the data type already exists, update the value with the average and increment the count
-            current_value = self.patient_data_map[patient_id]["values"][timestamp][data_type]['value']
-            num_of_records_processed = self.patient_data_map[patient_id]["values"][timestamp][data_type][
-                                           'num_records_processed'] + 1
-            average_value = float(current_value) + (float(value) - float(current_value)) / num_of_records_processed
-            self.patient_data_map[patient_id]["values"][timestamp][data_type]['value'] = average_value
+            current_value = self.patient_data_map[patient_id]["values"][timestamp][
+                data_type
+            ]["value"]
+            num_of_records_processed = (
+                self.patient_data_map[patient_id]["values"][timestamp][data_type][
+                    "num_records_processed"
+                ]
+                + 1
+            )
+            average_value = (
+                float(current_value)
+                + (float(value) - float(current_value)) / num_of_records_processed
+            )
             self.patient_data_map[patient_id]["values"][timestamp][data_type][
-                'num_records_processed'] = num_of_records_processed
-        
-         # Forward fill missing values 
-        if value == "-1":
-            last_value, last_timestamp = self.get_last_known_value(patient_id, data_type)
-            if last_timestamp and (timestamp - last_timestamp <= timedelta(minutes=30)):
-             value = last_value
-            else:
-             value = "-1"
+                "value"
+            ] = average_value
 
-         # Update last known value only if it's not missing
-        if value != "-1":
-            self.update_last_known_value(patient_id, data_type, value, timestamp)
+            self.patient_data_map[patient_id]["values"][timestamp][data_type][
+                "num_records_processed"
+            ] = num_of_records_processed
 
-        # Check for special handling variables
+    def handle_missing_value(self, patient_id, data_type, value, timestamp):
+        last_value, last_timestamp = self.get_last_known_value(patient_id, data_type)
+        # Check if the last known value is from the same day and within the last X minutes
+        if last_timestamp and (timestamp - last_timestamp <= timedelta(minutes=30)):
+            value = last_value
+
+        # Check for special handling variables.
+        # If the last known value is from the same day, use it.
         special_handling_variables = ["glucose", "haemoglobin", "paco2", "pao2", "ph"]
-        if data_type in special_handling_variables and value == "-1":
-            last_value, last_timestamp = self.get_last_known_value(patient_id, data_type)
+        if data_type in special_handling_variables:
             # Check if the last known value is from the same day
             if last_timestamp and last_timestamp.date() == timestamp.date():
-                 value = last_value
-            else:
-                 value = "-1"  # No valid last known value from the same day
+                value = last_value
+        
+        if last_value and last_value != -1:
+            self.update_last_known_value(patient_id, data_type, last_value, timestamp)
 
+        return value
 
     def add_date_of_birth_for_patient(self, patient_id, date_of_birth):
         # check if the patient exists in the map
@@ -189,23 +200,59 @@ class ICUDataParser:
     def create_final_data(self):
         # Iterate over the patient_data_map
         for patient_id, patient_data in self.patient_data_map.items():
-            sorted_timestamps = sorted(patient_data["values"].keys())
-            for timestamp in sorted_timestamps:
-                data_types = patient_data["values"][timestamp]
+            for timestamp, data_types in patient_data["values"].items():
                 # Create a new row for each timestamp, initialize it with -1
                 row = [-1] * len(self.final_data[0])
-                row[self.column_index['patient_id']] = patient_id
-                row[self.column_index['timestamp']] = timestamp.strftime("%Y-%m-%d %H:%M:%S")
+                row[self.column_index["patient_id"]] = patient_id
+                row[self.column_index["timestamp"]] = timestamp.strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                )
                 # Add the data values for each data type
                 for data_type, data in data_types.items():
-                    row[self.column_index[data_type]] = data['value']
-                current_value = data_types.get(data_type, {'value': '-1'})['value']    
-                row[self.column_index[data_type]] = current_value if current_value != '-1' else "-1"
-
+                    row[self.column_index[data_type]] = data["value"]
                 # Add the date of birth
-                row[self.column_index['date_of_birth']] = patient_data['date_of_birth']
+                row[self.column_index["date_of_birth"]] = patient_data["date_of_birth"]
                 # Add the row to the final_data list
                 self.final_data.append(row)
+
+    def fix_missing_values(self):
+        # order the final data by patient id and then timestamp
+        self.final_data = sorted(
+            self.final_data,
+            key=lambda x: (
+                x[self.column_index["patient_id"]],
+                x[self.column_index["timestamp"]],
+            ),
+        )
+
+        # the header row is now last, so put it back at the top:
+        self.final_data.insert(0, self.final_data.pop())
+
+        for i, row in enumerate(self.final_data[0:]):
+            # Skip the row if it's the header row or the patient_id is missing (empty row)
+            if i == 0 or row[self.column_index["patient_id"]] == "patient_id":
+                continue
+
+            patient_id = row[self.column_index["patient_id"]]
+
+            timestamp = datetime.strptime(
+                row[self.column_index["timestamp"]], "%Y-%m-%d %H:%M:%S"
+            )
+            for data_type in self.column_index.keys():
+                # skip the patient_id, timestamp, and date_of_birth columns as they are not data types
+                if data_type in ["patient_id", "timestamp", "date_of_birth"]:
+                    continue
+                current_value = row[self.column_index[data_type]]
+                # If the value is not missing, update the last known value
+                if current_value != -1:
+                    self.update_last_known_value(
+                        patient_id, data_type, current_value, timestamp
+                    )
+                else:
+                    value = self.handle_missing_value(
+                        patient_id, data_type, current_value, timestamp
+                    )
+                    row[self.column_index[data_type]] = value
 
     def save_final_data(self, data_dir, file_name="final_data.csv"):
         file = data_dir + os.sep + file_name
