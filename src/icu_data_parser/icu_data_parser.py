@@ -129,7 +129,7 @@ class ICUDataParser:
         self.last_known_values[patient_id][data_type] = (value, timestamp)
 
     def add_data_value_for_patient_at_timestamp(
-        self, patient_id, timestamp, data_type, value
+            self, patient_id, timestamp, data_type, value
     ):
         # check if the patient exists in the map
         if patient_id not in self.patient_data_map:
@@ -153,14 +153,14 @@ class ICUDataParser:
                 data_type
             ]["value"]
             num_of_records_processed = (
-                self.patient_data_map[patient_id]["values"][timestamp][data_type][
-                    "num_records_processed"
-                ]
-                + 1
+                    self.patient_data_map[patient_id]["values"][timestamp][data_type][
+                        "num_records_processed"
+                    ]
+                    + 1
             )
             average_value = (
-                float(current_value)
-                + (float(value) - float(current_value)) / num_of_records_processed
+                    float(current_value)
+                    + (float(value) - float(current_value)) / num_of_records_processed
             )
             self.patient_data_map[patient_id]["values"][timestamp][data_type][
                 "value"
@@ -183,7 +183,7 @@ class ICUDataParser:
             # Check if the last known value is from the same day
             if last_timestamp and last_timestamp.date() == timestamp.date():
                 value = last_value
-        
+
         if last_value and last_value != -1:
             self.update_last_known_value(patient_id, data_type, last_value, timestamp)
 
@@ -203,6 +203,8 @@ class ICUDataParser:
             for timestamp, data_types in patient_data["values"].items():
                 # Create a new row for each timestamp, initialize it with -1
                 row = [-1] * len(self.final_data[0])
+                # initialize the "peep" column with 0 instead of -1
+                row[self.column_index["peep"]] = 0
                 row[self.column_index["patient_id"]] = patient_id
                 row[self.column_index["timestamp"]] = timestamp.strftime(
                     "%Y-%m-%d %H:%M:%S"
@@ -244,7 +246,7 @@ class ICUDataParser:
                     continue
                 current_value = row[self.column_index[data_type]]
                 # If the value is not missing, update the last known value
-                if current_value != -1:
+                if current_value != -1 or (data_type == "peep" and current_value == 0):
                     self.update_last_known_value(
                         patient_id, data_type, current_value, timestamp
                     )
