@@ -51,6 +51,7 @@ print_percentages_of_rows_with_missing_values(df)
 
 # Let's drop the rows with more than 1 missing value
 missing_count_per_row = df.isnull().sum(axis=1)
+
 filtered_df = df[missing_count_per_row <= 1]
 
 print()
@@ -58,10 +59,12 @@ print('DataFrame after dropping rows with more than 1 missing value:')
 
 print_percentages_of_rows_with_missing_values(filtered_df)
 
-# A percentage of the rows have exactly 1 missing value. We will fill these missing values, by finding the nearest neighbor.
+# A percentage of the rows have exactly 1 missing value.
+# We will fill these missing values, by finding the nearest neighbor.
 
 # Separate the "date" columns from the rest of the data (we will add them back later)
-date_cols = ['date', 'date_of_birth', 'timestamp']
+date_cols = ['date_of_birth', 'timestamp']
+
 date_data = filtered_df[date_cols]
 numeric_df = filtered_df.drop(columns=date_cols)
 
@@ -96,3 +99,5 @@ combined_df = pd.concat([combined_df, date_data], axis=1)
 print()
 print('DataFrame after imputing the missing values:')
 print_percentages_of_rows_with_missing_values(combined_df)
+
+
