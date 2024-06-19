@@ -1,5 +1,5 @@
 class Regressor:
-    def fit(self, X, y):
+    def train(self, X, y):
         raise NotImplementedError()
 
     def predict(self, X):
