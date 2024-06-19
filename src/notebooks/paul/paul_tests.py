@@ -60,7 +60,7 @@ print_percentages_of_rows_with_missing_values(filtered_df)
 
 # A percentage of the rows have exactly 1 missing value. We will fill these missing values, by finding the nearest neighbor.
 
-# Separate the "date" columns from the rest of the data
+# Separate the "date" columns from the rest of the data (we will add them back later)
 date_cols = ['date', 'date_of_birth', 'timestamp']
 date_data = filtered_df[date_cols]
 numeric_df = filtered_df.drop(columns=date_cols)
@@ -75,6 +75,7 @@ no_missing_df = numeric_df[missing_count_per_row == 0]
 one_missing_df = numeric_df[missing_count_per_row == 1]
 
 # Initialize KNNImputer with a small number of neighbors (e.g., 1 or 2)
+# This will find the nearest neighbor to the row with the missing value and replace it with that value.
 imputer = KNNImputer(n_neighbors=1)
 
 # Impute missing values in the DataFrame with one missing value
