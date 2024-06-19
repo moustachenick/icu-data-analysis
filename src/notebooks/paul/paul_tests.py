@@ -3,6 +3,8 @@ import numpy as np
 from sklearn.impute import KNNImputer
 
 
+# Function to print the percentage of rows that have more than 1 column with missing values,
+# and the percentage of rows that have exactly 1 column with missing values.
 def print_percentages_of_rows_with_missing_values(dataframe):
     # count the number of rows that have more than 1 column with a missing value
     number_of_rows_with_more_than_1_missing_value = dataframe[dataframe.isna().sum(axis=1) > 1].shape[0]
