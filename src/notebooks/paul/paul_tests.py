@@ -22,30 +22,26 @@ def print_percentages_of_rows_with_missing_values(dataframe):
 df = pd.read_csv('../../../data/final_data.csv', engine='python')
 df.head()
 
+# The dataset contains missing values that are represented by different strings ("--", ".", etc).
 # declare an array of strings that will be converted to NaN
-missing_values = [-1, '-1', '--', '-', '.', "/"]
+missing_values_representations = [-1, '-1', '--', '-', '.', "/"]
 
 # Replace missing values with NaN
-df.replace(missing_values, np.nan, inplace=True)
+df.replace(missing_values_representations, np.nan, inplace=True)
 
 # print the total number of rows
 total_num_of_rows = df.shape[0]
-print('Total number of rows: ', total_num_of_rows)
-
 print()
-
+print('Total number of rows: ', total_num_of_rows)
+print()
 print('Percentage of rows with missing values initially:')
 
 print_percentages_of_rows_with_missing_values(df)
 
-# We want to interpolate the missing values in the data.
-# We will group the data by patient_id and date and interpolate the missing values within each group.
-# We want to find the nearest neighbor to the missing value and replace it with that value.
+# We want to fill the missing values in the data.
+# We can find the nearest neighbor to the row with the missing value and replace it with that value.
 
-# Extract date from the timestamp for grouping
-df['date'] = pd.to_datetime(df['timestamp']).dt.date
-
-# drop the 'respiration_rate' column as it has more than 50% missing values
+# drop the 'respiration_rate' column as it has many missing values, and is not needed for the analysis
 df.drop(columns=['respiration_rate'], inplace=True)
 print()
 
@@ -62,7 +58,7 @@ print('DataFrame after dropping rows with more than 1 missing value:')
 
 print_percentages_of_rows_with_missing_values(filtered_df)
 
-# 8.69% of the rows have exactly 1 missing value. We will fill these missing values, by finding the nearest neighbor.
+# A percentage of the rows have exactly 1 missing value. We will fill these missing values, by finding the nearest neighbor.
 
 # Separate the "date" columns from the rest of the data
 date_cols = ['date', 'date_of_birth', 'timestamp']
