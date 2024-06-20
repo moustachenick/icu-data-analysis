@@ -111,3 +111,5 @@ test*.txt
 
 # Jupyter Notebook
 .ipynb_checkpoints
+
+**/desktop.ini

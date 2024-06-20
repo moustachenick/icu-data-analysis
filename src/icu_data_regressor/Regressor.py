@@ -1,6 +1,12 @@
-class Regressor:
-    def fit(self, X, y):
-        raise NotImplementedError()
+from abc import ABC, abstractmethod
 
-    def predict(self, X):
-        raise NotImplementedError()
+
+class Regressor(ABC):
+
+    @abstractmethod
+    def fit(self, X_train, y_train):
+        pass
+
+    @abstractmethod
+    def predict(self, X_test):
+        pass
