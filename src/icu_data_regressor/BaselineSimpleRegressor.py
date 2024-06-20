@@ -2,6 +2,8 @@ from src.icu_data_regressor.Regressor import Regressor
 import pandas as pd
 
 
+# This class is a simple regressor that predicts the most recent icp value for each patient in the test set.
+# If the patient is not in the training set, then the average icp value is predicted.
 class BaselineSimpleRegressor(Regressor):
 
     def __init__(self):
