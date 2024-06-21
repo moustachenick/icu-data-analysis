@@ -10,6 +10,9 @@ class BaselineHistoryRegressionModel(RegressionModel):
         self.data = pd.DataFrame(columns=['patient_id', 'timestamp', 'icp'])
 
     def fit(self, X_train, y_train):
+        # we will use all the data from X_train to make the predictions.
+        # we will filter the data to include only the columns patient_id, timestamp and icp, since this Model only uses these columns.
+
         # drop all columns except patient_id and timestamp
         X_train = X_train[['patient_id', 'timestamp']]
         # concatenate X_train (columns patient_id and timestamp) and y_train
@@ -21,7 +24,7 @@ class BaselineHistoryRegressionModel(RegressionModel):
         predictions = []
 
         # for each row in X_test, we want to find the closest timestamp in the training data (for the same patient)
-        # but not including the timestamp in the test data
+        # (but not including the timestamp in the test data, we only want to use the data just before the timestamp in the test data)
         for index, row in X_test.iterrows():
             patient_id = row['patient_id']
             timestamp = row['timestamp']
