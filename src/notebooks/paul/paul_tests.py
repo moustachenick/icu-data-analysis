@@ -4,7 +4,7 @@ from sklearn.impute import KNNImputer
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error
 
-from src.icu_data_regressor.BaselineHistoryRegressionModel import BaselineHistoryRegressionModel
+from src.icu_data_regression_models.BaselineHistoryRegressionModel import BaselineHistoryRegressionModel
 
 
 # Function to print the percentage of rows that have more than 1 column with missing values,

@@ -1,4 +1,4 @@
-from src.icu_data_regressor.RegressionModel import RegressionModel
+from src.icu_data_regression_models.RegressionModel import RegressionModel
 import pandas as pd
 
 
