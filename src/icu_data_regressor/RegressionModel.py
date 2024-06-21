@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 
 
-class Regressor(ABC):
+class RegressionModel(ABC):
 
     @abstractmethod
     def fit(self, X_train, y_train):

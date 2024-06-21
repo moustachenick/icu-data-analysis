@@ -4,7 +4,7 @@ from sklearn.impute import KNNImputer
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error
 
-from src.icu_data_regressor.BaselineSimpleRegressor import BaselineSimpleRegressor
+from src.icu_data_regressor.BaselineHistoryRegressionModel import BaselineHistoryRegressionModel
 
 
 # Function to print the percentage of rows that have more than 1 column with missing values,
@@ -103,7 +103,7 @@ print('\nDataFrame after imputing the missing values:')
 print_percentages_of_rows_with_missing_values(combined_df)
 
 # initialize a new BaseSimpleRegressor object
-baseline_regressor = BaselineSimpleRegressor()
+baseline_regressor = BaselineHistoryRegressionModel()
 
 # We want to predict the ICP value for patient with id "1001", at the timestamp "2013-12-21 11:30:00".
 # So we need to train the Regressor on the data up to that timestamp.
@@ -135,7 +135,7 @@ prediction = baseline_regressor.predict(X_test.drop(columns=['icp']))
 
 real = y_test.values[0]
 # Get the predicted ICP value
-predicted = prediction['icp'].values[0]
+predicted = prediction[0]
 
 # Using f-strings for aligned printing
 print(
@@ -168,9 +168,9 @@ y_train = y[:train_size]
 X_test = X[train_size:]
 y_test = y[train_size:]
 
-# Use a BaselineSimpleRegressor model
+# Use a BaselineHistoryRegressionModel model
 
-baseline_regressor = BaselineSimpleRegressor()
+baseline_regressor = BaselineHistoryRegressionModel()
 
 # Fit the model on the training data
 baseline_regressor.fit(X_train, y_train)
@@ -180,13 +180,13 @@ predictions = baseline_regressor.predict(X_test)
 
 # now we need to compute the mean squared error of the predictions, without importing from sklearn
 
-mse = np.mean((y_test - predictions['icp'].values) ** 2)
+mse = np.mean((y_test - predictions) ** 2)
 
-print('\nMean Squared Error from BaselineSimpleRegressor:', mse)
+print('\nMean Squared Error from BaselineHistoryRegressionModel:', mse)
 
 # ======================================================================================================================
 
-# Use a LinearRegression model
+# Use a Linear Regression model
 
 model = LinearRegression()
 
