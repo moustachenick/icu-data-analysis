@@ -15,7 +15,7 @@ class BaselineHistoryRegressionModel(RegressionModel):
 
         # drop all columns except patient_id and timestamp
         X_train = X_train[['patient_id', 'timestamp']]
-        # concatenate X_train (columns patient_id and timestamp) and y_train
+        # concatenate X_train (columns patient_id and timestamp) and y_train (column icp)
         X_train = pd.concat([X_train, y_train], axis=1)
 
         self.data = X_train
