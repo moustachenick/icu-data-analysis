@@ -2,19 +2,18 @@ import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
-import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error
-from icu_data_regression_models.baselineadvancedregressor import BaselineAdvancedRegressor
-from icu_data_parser.datapreprocessor import DataPreProcessor
+from icu_data_regression_models.BaselineAdvancedRegressor import BaselineAdvancedRegressor
+from icu_data_parser.DataPreProcessor import DataPreProcessor
 
 
 
 data_processor = DataPreProcessor()
 
-filtered_df = data_processor.replace_missing_values(pd.DataFrame())
+filtered_df = data_processor.replace_missing_values()
 
 combined_df = data_processor.known_nearest_neighbor_imputer(filtered_df)
 
