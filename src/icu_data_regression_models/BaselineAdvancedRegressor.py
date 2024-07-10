@@ -1,7 +1,6 @@
 import pandas as pd
 
 
-
 class BaselineAdvancedRegressor:
     def __init__(self):
         self.data = pd.DataFrame(columns=['patient_id', 'timestamp', 'icp'])

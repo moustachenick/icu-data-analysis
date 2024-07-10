@@ -37,7 +37,7 @@ class DataPreProcessor:
         print('Percentage of rows that have exactly 1 column with missing value: ', 
               number_of_rows_with_1_missing_value / total_num_of_rows * 100) 
 
-      def replace_missing_values(self,df):
+      def replace_missing_values(self):
             # Construct the absolute path
             file_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'final_data.csv'))
             
