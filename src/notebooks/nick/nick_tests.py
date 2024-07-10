@@ -11,14 +11,11 @@ from icu_data_regression_models.baselineadvancedregressor import BaselineAdvance
 from icu_data_parser.datapreprocessor import DataPreProcessor
 
 
-# Create an instance of DataPreProcessor
+
 data_processor = DataPreProcessor()
 
-# Assuming you have a DataFrame named df, you can now call the methods
-# First, preprocess the data to replace missing values
 filtered_df = data_processor.replace_missing_values(pd.DataFrame())
 
-# Then, use the known_nearest_neighbor_imputer method to get the combined DataFrame
 combined_df = data_processor.known_nearest_neighbor_imputer(filtered_df)
 
 # Split the data into training and testing sets
