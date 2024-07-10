@@ -2,6 +2,7 @@ import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
+
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -55,29 +56,3 @@ linear_mse = mean_squared_error(y_test, linear_predictions)
 
 print('Baseline Advanced Regressor Mean Squared Error:', baseline_mse)
 print('Linear Regression Mean Squared Error:', linear_mse)
-
-# Extract actual ICP values and patient_ids from the test set
-actual_icp = y_test.values
-patient_ids = test_df['patient_id'].values
-
-# Plot 1: Actual ICP vs Baseline Advanced Regressor Predictions
-plt.figure(figsize=(14, 7))
-plt.plot(actual_icp, label='Actual ICP', color='blue', alpha=0.6)
-plt.plot(baseline_predictions, label='Baseline Advanced Regressor Predictions', color='red', alpha=0.6)
-plt.xticks(ticks=np.arange(len(patient_ids)), labels=patient_ids, rotation=90, fontsize=8, alpha=0.6)
-plt.title('Actual ICP vs Baseline Advanced Regressor Predictions')
-plt.xlabel('Patient IDs')
-plt.ylabel('ICP')
-plt.legend()
-plt.show()
-
-# Plot 2: Actual ICP vs Linear Regression Predictions
-plt.figure(figsize=(14, 7))
-plt.plot(actual_icp, label='Actual ICP', color='blue', alpha=0.6)
-plt.plot(linear_predictions, label='Linear Regression Predictions', color='green', alpha=0.6)
-plt.xticks(ticks=np.arange(len(patient_ids)), labels=patient_ids, rotation=90, fontsize=8, alpha=0.6)
-plt.title('Actual ICP vs Linear Regression Predictions')
-plt.xlabel('Patient IDs')
-plt.ylabel('ICP')
-plt.legend()
-plt.show()
