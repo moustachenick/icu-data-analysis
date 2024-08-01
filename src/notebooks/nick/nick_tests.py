@@ -1,10 +1,12 @@
 import sys
 import os
+import multiprocessing
+
+from matplotlib import pyplot as plt
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 from scipy.stats import ttest_rel
 from sklearn.linear_model import LinearRegression, Ridge
 from sklearn.metrics import mean_squared_error
@@ -12,6 +14,12 @@ from sklearn.model_selection import KFold, cross_val_score
 from icu_data_regression_models.BaselineMeanRegressionModel import BaselineMeanRegressionModel
 from icu_data_parser.DataPreProcessor import DataPreProcessor
 from icu_data_regression_models.BaselineHistoryRegressionModel import BaselineHistoryRegressionModel
+from icu_data_regression_models.RegressionModelPlotter import RegressionModelPlotter
+
+
+def plot_predictions_process(y_test, predictions_dict):
+    RegressionModelPlotter.plot_regression_models(y_test, predictions_dict)
+
 
 data_processor = DataPreProcessor()
 
@@ -138,17 +146,17 @@ y_ref = x
 
 # Plot the lines for all models
 
-plt.figure(figsize=(14, 8))
-plt.scatter(y_test, linear_predictions, label='Linear Predictions')
-plt.scatter(y_test, baseline_predictions, label='Baseline Advanced Predictions')
-plt.scatter(y_test, history_predictions, label='Baseline History Predictions')
-plt.plot(x, y_ref, color="black", linewidth=1, label='Perfect Prediction')
-plt.axhline(0, color='black', linewidth=1)
-plt.axvline(0, color='black', linewidth=1)
-plt.xlabel('Actual Values', fontsize=14)
-plt.ylabel('Predictions', fontsize=14)
-plt.legend()
-plt.show()
+# Dictionary of model predictions
+predictions_dict = {
+    'Linear Regression': linear_predictions,
+    'Baseline Advanced Regressor': baseline_predictions,
+    'Baseline History Regressor': history_predictions
+}
+
+# Start a new thread to plot predictions
+# Start a new process to plot predictions
+plot_process = multiprocessing.Process(target=plot_predictions_process, args=(y_test, predictions_dict))
+plot_process.start()
 
 # Create a DataFrame with the predictions and actual values
 results_df = pd.DataFrame({
@@ -167,6 +175,8 @@ X_lr = X.drop(columns=['timestamp', 'patient_id', 'date_of_birth'])
 # Initialize lists to store cross-validation scores
 linear_cv_scores = cross_val_score(linear_regression, X_lr, y, cv=kf, scoring='neg_mean_squared_error')
 
+print('\n\nLinear CV Scores:', linear_cv_scores)
+
 # Convert scores to positive values
 linear_cv_scores = -linear_cv_scores
 
@@ -184,12 +194,16 @@ advanced_cv_scores = cross_val_score(baseline_mean_regression_model, X, y, cv=kf
 # Convert scores to positive values
 advanced_cv_scores = -advanced_cv_scores
 
+print('\n\nAdvanced CV Scores:', advanced_cv_scores)
+
 # Perform 10-fold cross-validation for the Baseline History Regressor
 
 history_cv_scores = cross_val_score(history_regressor, X, y, cv=kf, scoring='neg_mean_squared_error')
 
 # Convert scores to positive values
 history_cv_scores = -history_cv_scores
+
+print('\n\nHistory CV Scores:', history_cv_scores)
 
 # Add the cross-validation results to the DataFrame
 

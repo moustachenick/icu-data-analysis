@@ -1,8 +1,8 @@
 import os
 import argparse
 import logging
-from logging_custom_formatter import CustomFormatter
-from icu_data_parser.icu_data_parser import ICUDataParser
+from LoggingCustomFormatter import CustomFormatter
+from icu_data_parser.DataParser import DataParser
 
 logger = logging.getLogger(__name__)
 parser = argparse.ArgumentParser()
@@ -30,7 +30,7 @@ def main(data_dir):
         "episodes with high icp.txt",
     ]
     files_to_parse = []
-    icu_data_parser = ICUDataParser(logger)
+    icu_data_parser = DataParser(logger)
     for file in file_names_to_parse:
         logger.debug(f"Found file {data_dir + os.sep + file}")
         if file.endswith(".txt"):

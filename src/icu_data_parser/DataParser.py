@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 """
 
 
-class ICUDataParser:
+class DataParser:
     def __init__(self, logger):
         self.logger = logger
         # final data list to store the final dataset
