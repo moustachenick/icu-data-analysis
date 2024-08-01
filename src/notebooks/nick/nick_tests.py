@@ -1,5 +1,6 @@
 import sys
 import os
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 import pandas as pd
 import numpy as np
@@ -169,9 +170,47 @@ linear_cv_scores = cross_val_score(linear_regression, X_lr, y, cv=kf, scoring='n
 # Convert scores to positive values
 linear_cv_scores = -linear_cv_scores
 
-print('Linear Regression 10-fold CV Mean Squared Error:', np.mean(linear_cv_scores))
-
 # Display cross-validation results
 cv_results_df = pd.DataFrame({
     'LinearRegressionModel': linear_cv_scores
 })
+
+# Now we want to compare the cross-validation results of the Linear Regression model
+# with the Baseline Advanced Regressor and the Baseline History Regressor.
+
+# Perform 10-fold cross-validation for the Baseline Advanced Regressor
+advanced_cv_scores = cross_val_score(baseline_mean_regression_model, X, y, cv=kf, scoring='neg_mean_squared_error')
+
+# Convert scores to positive values
+advanced_cv_scores = -advanced_cv_scores
+
+# Perform 10-fold cross-validation for the Baseline History Regressor
+
+history_cv_scores = cross_val_score(history_regressor, X, y, cv=kf, scoring='neg_mean_squared_error')
+
+# Convert scores to positive values
+history_cv_scores = -history_cv_scores
+
+# Add the cross-validation results to the DataFrame
+
+cv_results_df['BaselineAdvancedRegressorModel'] = advanced_cv_scores
+cv_results_df['BaselineHistoryRegressionModel'] = history_cv_scores
+
+# Display the cross-validation results
+
+print('\nCross-Validation Results:')
+print('Linear Regression 10-fold CV Mean Squared Error:', np.mean(linear_cv_scores))
+print('Baseline Advanced Regressor 10-fold CV Mean Squared Error:', np.mean(advanced_cv_scores))
+print('Baseline History Regressor 10-fold CV Mean Squared Error:', np.mean(history_cv_scores))
+print('\n\n')
+
+# Plot the cross-validation results (mean squared error) for all models
+
+plt.figure(figsize=(14, 8))
+plt.plot(linear_cv_scores, label='Linear Regression')
+plt.plot(advanced_cv_scores, label='Baseline Advanced Regressor')
+plt.plot(history_cv_scores, label='Baseline History Regressor')
+plt.xlabel('Fold', fontsize=14)
+plt.ylabel('Mean Squared Error', fontsize=14)
+plt.legend()
+plt.show()

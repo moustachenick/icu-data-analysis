@@ -1,25 +1,7 @@
 import os
-import sys
-from pathlib import Path
 import numpy as np
 import pandas as pd
 from sklearn.impute import KNNImputer
-
-# Get the current working directory
-current_dir = Path(os.getcwd())
-
-# Assuming the notebook is in a subdirectory of the project root, adjust the path accordingly
-# Verify this path is correct for your project structure
-project_root = current_dir.parent.parent.parent
-
-# Print the project root for verification
-print(f"Project Root: {project_root}")
-
-# Convert the path to an absolute path and append it to sys.path if not already present
-project_root_abs = str(project_root.resolve())
-if project_root_abs not in sys.path:
-    sys.path.append(project_root_abs)
-
 
 
 class DataPreProcessor:
@@ -27,15 +9,15 @@ class DataPreProcessor:
       def print_percentages_of_rows_with_missing_values(self, dataframe):
         # Function to print the percentage of rows that have more than 1 column with missing values
         # and the percentage of rows that have exactly 1 column with missing values.
-        
+
         total_num_of_rows = dataframe.shape[0]
         number_of_rows_with_more_than_1_missing_value = dataframe[dataframe.isna().sum(axis=1) > 1].shape[0]
         print('Percentage of rows that have more than 1 column with missing values: ',
               number_of_rows_with_more_than_1_missing_value / total_num_of_rows * 100)
-        
+
         number_of_rows_with_1_missing_value = dataframe[dataframe.isna().sum(axis=1) == 1].shape[0]
-        print('Percentage of rows that have exactly 1 column with missing value: ', 
-              number_of_rows_with_1_missing_value / total_num_of_rows * 100) 
+        print('Percentage of rows that have exactly 1 column with missing value: ',
+              number_of_rows_with_1_missing_value / total_num_of_rows * 100)
 
       def replace_missing_values(self):
             # Construct the absolute path
