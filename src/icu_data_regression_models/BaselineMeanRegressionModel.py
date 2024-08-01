@@ -1,7 +1,9 @@
 import pandas as pd
 
+from icu_data_regression_models.RegressionModel import RegressionModel
 
-class BaselineAdvancedRegressor:
+
+class BaselineMeanRegressionModel(RegressionModel):
     def __init__(self):
         self.data = pd.DataFrame(columns=['patient_id', 'timestamp', 'icp'])
 
