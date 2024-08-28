@@ -1,6 +1,5 @@
 import sys
 import os
-import multiprocessing
 
 from matplotlib import pyplot as plt
 
@@ -16,9 +15,6 @@ from icu_data_parser.DataPreProcessor import DataPreProcessor
 from icu_data_regression_models.BaselineHistoryRegressionModel import BaselineHistoryRegressionModel
 from icu_data_regression_models.RegressionModelPlotter import RegressionModelPlotter
 
-
-def plot_predictions_process(y_test, predictions_dict):
-    RegressionModelPlotter.plot_regression_models(y_test, predictions_dict)
 
 
 data_processor = DataPreProcessor()
@@ -153,10 +149,8 @@ predictions_dict = {
     'Baseline History Regressor': history_predictions
 }
 
-# Start a new thread to plot predictions
-# Start a new process to plot predictions
-plot_process = multiprocessing.Process(target=plot_predictions_process, args=(y_test, predictions_dict))
-plot_process.start()
+# Plot the results for all models
+RegressionModelPlotter.plot_regression_models(y_test, predictions_dict)
 
 # Create a DataFrame with the predictions and actual values
 results_df = pd.DataFrame({

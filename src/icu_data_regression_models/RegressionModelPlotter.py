@@ -33,4 +33,4 @@ class RegressionModelPlotter:
         plt.xlabel('Actual Values', fontsize=14)
         plt.ylabel('Predictions', fontsize=14)
         plt.legend()
-        plt.show()
+        plt.show(block=False)
