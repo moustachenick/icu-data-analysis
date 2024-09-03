@@ -98,3 +98,20 @@ class DataPreProcessor:
 
             return combined_df
 
+      def delete_negative_icp_values(self, combined_df): 
+
+            # Ensure 'icp' is a numeric column
+            combined_df['icp'] = pd.to_numeric(combined_df['icp'], errors='coerce')
+
+            # Count the number of negative 'icp' values
+            negative_icp_count = (combined_df['icp'] < 0).sum()
+            print(f"Number of negative ICP values: {negative_icp_count}")
+            print("Total Rows before deletion =", len(combined_df))
+
+            # Delete rows where 'icp' is negative
+            cleaned_df = combined_df[combined_df['icp'] >= 0]
+
+            # Print the updated DataFrame details
+            print("Total Rows after deleting negative ICP values =", len(cleaned_df))
+
+            return cleaned_df

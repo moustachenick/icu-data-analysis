@@ -14,6 +14,7 @@ from icu_data_regression_models.BaselineMeanRegressionModel import BaselineMeanR
 from icu_data_parser.DataPreProcessor import DataPreProcessor
 from icu_data_regression_models.BaselineHistoryRegressionModel import BaselineHistoryRegressionModel
 from icu_data_regression_models.RegressionModelPlotter import RegressionModelPlotter
+from scipy.stats import anderson 
 
 
 
@@ -23,9 +24,11 @@ filtered_df = data_processor.replace_missing_values()
 
 combined_df = data_processor.known_nearest_neighbor_imputer(filtered_df)
 
+cleaned_df = data_processor.delete_negative_icp_values(combined_df)
+
 # Split the data into features (X) and target (y)
-X = combined_df.drop(columns=['icp'])
-y = combined_df['icp']
+X = cleaned_df.drop(columns=['icp'])
+y = cleaned_df['icp']
 
 # Let's use only the first 20% of the data, for speed (TODO: remove in the final version)
 X = X[:int(0.2 * X.shape[0])]
@@ -85,6 +88,7 @@ print('Baseline Advanced Regressor Mean Squared Error:', baseline_mse)
 print('Linear Regression Mean Squared Error:', linear_mse)
 print('Baseline History Regression Mean Squared Error', history_mse)
 print('Ridge Regression Mean Squared Error:', ridge_regression_mse)
+
 
 # Calculate the residuals
 history_residuals = y_test.values - history_predictions
