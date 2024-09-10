@@ -9,12 +9,14 @@ import numpy as np
 from scipy.stats import ttest_rel
 from sklearn.linear_model import LinearRegression, Ridge
 from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_absolute_error
+from sklearn.metrics import root_mean_squared_error
 from sklearn.model_selection import KFold, cross_val_score
 from icu_data_regression_models.BaselineMeanRegressionModel import BaselineMeanRegressionModel
 from icu_data_parser.DataPreProcessor import DataPreProcessor
 from icu_data_regression_models.BaselineHistoryRegressionModel import BaselineHistoryRegressionModel
 from icu_data_regression_models.RegressionModelPlotter import RegressionModelPlotter
-from scipy.stats import anderson 
+from pathlib import Path
 
 
 
@@ -25,6 +27,12 @@ filtered_df = data_processor.replace_missing_values()
 combined_df = data_processor.known_nearest_neighbor_imputer(filtered_df)
 
 cleaned_df = data_processor.delete_negative_icp_values(combined_df)
+
+
+filepath = Path('C:/Users/Nick/Desktop/ICU poster/cleaned_df.csv')
+
+
+cleaned_df.to_csv(filepath)
 
 # Split the data into features (X) and target (y)
 X = cleaned_df.drop(columns=['icp'])
@@ -59,8 +67,8 @@ history_regressor.fit(X_train, y_train)
 history_predictions = history_regressor.predict(X_test)
 
 # For the LinearRegression model, we need to drop the 'timestamp', 'patient_id', and 'date_of_birth' columns
-X_train_lr = X_train.drop(columns=['timestamp', 'patient_id', 'date_of_birth'])
-X_test_lr = X_test.drop(columns=['timestamp', 'patient_id', 'date_of_birth'])
+X_train_lr = X_train.drop(columns=['timestamp', 'patient_id', 'date_of_birth', 'glucose', 'haemoglobin', 'peep','paco2', 'pao2', 'heart_rate','ph','spo2','temperature'])
+X_test_lr = X_test.drop(columns=['timestamp', 'patient_id', 'date_of_birth','glucose', 'haemoglobin','peep','paco2','pao2', 'heart_rate','ph','spo2','temperature'])
 
 # Initialize and train the Linear Regression model
 linear_regression = LinearRegression()
@@ -82,12 +90,40 @@ linear_mse = mean_squared_error(y_test, linear_predictions)
 history_mse = mean_squared_error(y_test, history_predictions)
 ridge_regression_mse = mean_squared_error(y_test, ridge_regression_predictions)
 
+# Evaluate all models
+baseline_mae = mean_absolute_error(y_test, baseline_predictions)
+linear_mae = mean_absolute_error(y_test, linear_predictions)
+history_mae = mean_absolute_error(y_test, history_predictions)
+ridge_regression_mae = mean_absolute_error(y_test, ridge_regression_predictions)
+
+# Evaluate all models
+baseline_rmse = root_mean_squared_error(y_test, baseline_predictions)
+linear_rmse = root_mean_squared_error(y_test, linear_predictions)
+history_rmse = root_mean_squared_error(y_test, history_predictions)
+ridge_regression_rmse = root_mean_squared_error(y_test, ridge_regression_predictions)
+
+
+
 print('\n\nMean Squared Error Results:')
 
-print('Baseline Advanced Regressor Mean Squared Error:', baseline_mse)
+print('Baseline Advanced Regression Mean Squared Error:', baseline_mse)
 print('Linear Regression Mean Squared Error:', linear_mse)
 print('Baseline History Regression Mean Squared Error', history_mse)
 print('Ridge Regression Mean Squared Error:', ridge_regression_mse)
+
+print('\n\nMean Absolute Error Results:')
+
+print('Baseline Advanced Regression Mean Absolute Error:', baseline_mae)
+print('Linear Regression Mean Absolute Error:', linear_mae)
+print('Baseline History Regression Mean Absolute Error', history_mae)
+print('Ridge Regression Mean Absolute Error:', ridge_regression_mae)
+
+print('\n\nRoot Mean Squared Error Results:')
+
+print('Baseline Advanced Regression Root Mean Squared Error:', baseline_rmse)
+print('Linear Regression Root Mean Squared Error:', linear_rmse)
+print('Baseline History Regression Root Mean Squared Error', history_rmse)
+print('Ridge Regression Root Mean Squared Error:', ridge_regression_rmse)
 
 
 # Calculate the residuals
@@ -214,6 +250,12 @@ print('\nCross-Validation Results:')
 print('Linear Regression 10-fold CV Mean Squared Error:', np.mean(linear_cv_scores))
 print('Baseline Advanced Regressor 10-fold CV Mean Squared Error:', np.mean(advanced_cv_scores))
 print('Baseline History Regressor 10-fold CV Mean Squared Error:', np.mean(history_cv_scores))
+print('\n\n')
+
+print('\nCross-Validation Results:')
+print('Linear Regression 10-fold CV Mean Absolute Error:', np.absolute(linear_cv_scores))
+print('Baseline Advanced Regressor 10-fold CV Mean Absolute Error:', np.absolute(advanced_cv_scores))
+print('Baseline History Regressor 10-fold CV Mean Absolute Error:', np.absolute(history_cv_scores))
 print('\n\n')
 
 # Plot the cross-validation results (mean squared error) for all models
