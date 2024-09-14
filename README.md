@@ -48,7 +48,7 @@ distribution that comes with a lot of useful packages and tools.
 After you have activated the Python environment, you can install the dependencies by running:
 
 ```bash
-pip install -r requirements.txt
+venv/Scripts/pip install -r requirements.txt
 ```
 
 This command will install all the dependencies listed in the `requirements.txt` file.
@@ -82,7 +82,7 @@ After you have installed the dependencies and have the data files in the correct
 running:
 
 ```bash
-python src/main.py --dir=<path_to_icu_data_files> --dir-relative=True --log=DEBUG
+venv/Scripts/python src/main.py --dir=<path_to_icu_data_files> --dir-relative=True --log=DEBUG
 ```
 
 Where:
@@ -97,7 +97,7 @@ If no `--log` argument is provided, the default log level is `DEBUG`.
 So you can also run the script with the default parameters, by running:
 
 ```bash
-python src/main.py
+venv/Scripts/python src/main.py
 ```
 
 ## Testing
@@ -107,7 +107,7 @@ The project includes some basic testing using the `pytest` package and the `unit
 You can run the tests by running:
 
 ```bash
-python -m unittest discover tests
+venv/Scripts/python -m unittest discover tests
 ```
 
 You can also run the tests with coverage by running:

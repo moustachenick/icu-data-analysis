@@ -29,7 +29,11 @@ combined_df = data_processor.known_nearest_neighbor_imputer(filtered_df)
 cleaned_df = data_processor.delete_negative_icp_values(combined_df)
 
 
-filepath = Path('C:/Users/Nick/Desktop/ICU poster/cleaned_df.csv')
+# Construct the file path
+output_dir = Path(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'data')))
+output_dir.mkdir(parents=True, exist_ok=True)  # Ensure the directory exists
+
+filepath = output_dir / 'cleaned_df.csv'
 
 
 cleaned_df.to_csv(filepath)
