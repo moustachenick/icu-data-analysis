@@ -63,12 +63,13 @@ history_predictions = history_regressor.predict(X_test)
 # For the LinearRegression model, we need to drop the 'timestamp', 'patient_id', and 'date_of_birth' columns
 X_train_lr = X_train.drop(columns=['timestamp', 'patient_id', 'date_of_birth'])
 X_test_lr = X_test.drop(columns=['timestamp', 'patient_id', 'date_of_birth'])
+X_cleaned = X.drop(columns=['timestamp', 'patient_id', 'date_of_birth'])
 
 # Scale the features (especially important for features on different scales)
 scaler = StandardScaler()
 X_train_lr = scaler.fit_transform(X_train_lr)
 X_test_lr = scaler.transform(X_test_lr)
-X_cleaned = X.drop(columns=['timestamp', 'patient_id', 'date_of_birth'])
+
 
 # Initialize and train the Linear Regression model
 linear_regression = LinearRegression()
