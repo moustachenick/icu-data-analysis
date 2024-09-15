@@ -16,6 +16,10 @@ from icu_data_regression_models.BaselineMeanRegressionModel import BaselineMeanR
 from icu_data_parser.DataPreProcessor import DataPreProcessor
 from icu_data_regression_models.BaselineHistoryRegressionModel import BaselineHistoryRegressionModel
 from icu_data_regression_models.RegressionModelPlotter import RegressionModelPlotter
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import Lasso
+from sklearn.metrics import r2_score
+from sklearn.linear_model import LassoCV
 
 
 file_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'data', 'final_data.csv'))
@@ -260,40 +264,65 @@ plt.legend()
 plt.show()
 
 
-# We want to predict the ICP value for patient with id "1001", at the timestamp "2013-12-21 11:30:00".
-# So we need to train the Regressor on the data up to that timestamp.
-# We will filter the data to include only the rows of this patient_id, and up to that timestamp.
+# From the cleaned_df, we want to check the importance of the features in predicting the ICP values.
+# Let's use the Lasso Regression model for this purpose.
 
-# Filter the data to include only the rows of patient_id "1001"
-patient_id = 1001
-filtered_data = cleaned_df[cleaned_df['patient_id'] == patient_id]
+# Remove the 'timestamp', 'patient_id', and 'date_of_birth' columns as they are not numeric and not useful for the Lasso model
+X_train = X_train.drop(columns=['timestamp', 'patient_id', 'date_of_birth'])
+X_test = X_test.drop(columns=['timestamp', 'patient_id', 'date_of_birth'])
+X_cleaned = X.drop(columns=['timestamp', 'patient_id', 'date_of_birth'])
 
-# Filter the data to include only the rows up to ( and not including) timestamp "2013-12-21 11:30:00"
-timestamp = '2013-12-21 11:00:00'
-filtered_data = filtered_data[filtered_data['timestamp'] < timestamp]
+# Scale the features (important for Lasso)
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
 
-# Split the filtered data into features (X) and target (y)
-X_train = filtered_data.drop(columns=['icp'])
-y_train = filtered_data['icp']
+# Initialize Lasso regression model with a chosen alpha value
+lasso = Lasso(alpha=0.1)  # You can experiment with different alpha values
 
-# Fit the Regressor on the filtered data
-history_regressor.fit(X_train, y_train)
+# Fit the model
+lasso.fit(X_train_scaled, y_train)
 
-# Predict the ICP value for the patient_id at the timestamp
+# Make predictions
+y_pred_train = lasso.predict(X_train_scaled)
+y_pred_test = lasso.predict(X_test_scaled)
 
-# Filter the data to include only the rows of this patient_id, and at that timestamp
+# Evaluate the model
+mse_train = mean_squared_error(y_train, y_pred_train)
+mse_test = mean_squared_error(y_test, y_pred_test)
+r2_train = r2_score(y_train, y_pred_train)
+r2_test = r2_score(y_test, y_pred_test)
 
-X_test = cleaned_df[(cleaned_df['patient_id'] == patient_id) & (cleaned_df['timestamp'] == timestamp)]
-y_test = X_test['icp']
+print(f"Training MSE: {mse_train}")
+print(f"Test MSE: {mse_test}")
+print(f"Training R2 Score: {r2_train}")
+print(f"Test R2 Score: {r2_test}")
 
-prediction = history_regressor.predict(X_test.drop(columns=['icp']))
+# Get the coefficients from the Lasso model
+coefficients = pd.Series(lasso.coef_, index=X_cleaned.columns)
 
-real = y_test.values[0]
-# Get the predicted ICP value
-predicted = prediction[0]
+# Display coefficients
+print("Lasso Coefficients:")
+print(coefficients)
 
-# Using f-strings for aligned printing
-print(
-    f"\n{'Predicted ICP value for patient_id:':<40} {patient_id:<10} {'at timestamp:':<20} {timestamp:<20} {'is:':<5} {predicted:<10}")
-print(
-    f"{'Real ICP value for patient_id:':<40} {patient_id:<10} {'at timestamp:':<20} {timestamp:<20} {'is:':<5} {real:<10}")
+# Identify important features
+important_features = coefficients[coefficients != 0].index.tolist()
+print("Important features selected by Lasso:", important_features)
+
+# LassoCV automatically tunes alpha using cross-validation
+lasso_cv = LassoCV(cv=5, random_state=42)
+
+# Fit the LassoCV model
+lasso_cv.fit(X_train_scaled, y_train)
+
+# Get the best alpha value
+best_alpha = lasso_cv.alpha_
+print(f"Optimal alpha value: {best_alpha}")
+
+# Evaluate performance with the best alpha
+y_pred_cv = lasso_cv.predict(X_test_scaled)
+mse_cv = mean_squared_error(y_test, y_pred_cv)
+r2_cv = r2_score(y_test, y_pred_cv)
+
+print(f"Test MSE with optimal alpha: {mse_cv}")
+print(f"Test R2 Score with optimal alpha: {r2_cv}")
