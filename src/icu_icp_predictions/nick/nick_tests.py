@@ -61,8 +61,14 @@ history_regressor.fit(X_train, y_train)
 history_predictions = history_regressor.predict(X_test)
 
 # For the LinearRegression model, we need to drop the 'timestamp', 'patient_id', and 'date_of_birth' columns
-X_train_lr = X_train.drop(columns=['timestamp', 'patient_id', 'date_of_birth', 'glucose', 'haemoglobin', 'peep','paco2', 'pao2', 'heart_rate','ph','spo2','temperature'])
-X_test_lr = X_test.drop(columns=['timestamp', 'patient_id', 'date_of_birth','glucose', 'haemoglobin','peep','paco2','pao2', 'heart_rate','ph','spo2','temperature'])
+X_train_lr = X_train.drop(columns=['timestamp', 'patient_id', 'date_of_birth'])
+X_test_lr = X_test.drop(columns=['timestamp', 'patient_id', 'date_of_birth'])
+
+# Scale the features (especially important for features on different scales)
+scaler = StandardScaler()
+X_train_lr = scaler.fit_transform(X_train_lr)
+X_test_lr = scaler.transform(X_test_lr)
+X_cleaned = X.drop(columns=['timestamp', 'patient_id', 'date_of_birth'])
 
 # Initialize and train the Linear Regression model
 linear_regression = LinearRegression()
@@ -70,6 +76,13 @@ linear_regression.fit(X_train_lr, y_train)
 
 # Make predictions with the Linear Regression model
 linear_predictions = linear_regression.predict(X_test_lr)
+
+# Get the coefficients
+coefficients = pd.Series(linear_regression.coef_, index=X_cleaned.columns)
+
+# Print the coefficients and their importance
+print("Linear Regression Coefficients:")
+print(coefficients)
 
 # Let's also try another model from the sklearn library, the Ridge Regression model
 
@@ -267,7 +280,7 @@ plt.show()
 # From the cleaned_df, we want to check the importance of the features in predicting the ICP values.
 # Let's use the Lasso Regression model for this purpose.
 
-# Remove the 'timestamp', 'patient_id', and 'date_of_birth' columns as they are not numeric and not useful for the Lasso model
+# Remove the 'timestamp', 'patient_id', and 'date_of_birth' columns as they are not numeric and not useful for the model
 X_train = X_train.drop(columns=['timestamp', 'patient_id', 'date_of_birth'])
 X_test = X_test.drop(columns=['timestamp', 'patient_id', 'date_of_birth'])
 X_cleaned = X.drop(columns=['timestamp', 'patient_id', 'date_of_birth'])
@@ -308,21 +321,3 @@ print(coefficients)
 # Identify important features
 important_features = coefficients[coefficients != 0].index.tolist()
 print("Important features selected by Lasso:", important_features)
-
-# LassoCV automatically tunes alpha using cross-validation
-lasso_cv = LassoCV(cv=5, random_state=42)
-
-# Fit the LassoCV model
-lasso_cv.fit(X_train_scaled, y_train)
-
-# Get the best alpha value
-best_alpha = lasso_cv.alpha_
-print(f"Optimal alpha value: {best_alpha}")
-
-# Evaluate performance with the best alpha
-y_pred_cv = lasso_cv.predict(X_test_scaled)
-mse_cv = mean_squared_error(y_test, y_pred_cv)
-r2_cv = r2_score(y_test, y_pred_cv)
-
-print(f"Test MSE with optimal alpha: {mse_cv}")
-print(f"Test R2 Score with optimal alpha: {r2_cv}")
