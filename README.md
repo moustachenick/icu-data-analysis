@@ -76,13 +76,13 @@ The algorithm will read all the files in the directory and parse the data into a
 The file names are hardcoded in the script, so make sure the files are named as above.
 If a file is missing, the program will raise a warning, but continue the execution.
 
-## How to run the script
+## How to run the Data Parser main script
 
 After you have installed the dependencies and have the data files in the correct directory, you can run the script by
 running:
 
 ```bash
-venv/Scripts/python src/main.py --dir=<path_to_icu_data_files> --dir-relative=True --log=DEBUG
+venv/Scripts/python src/icu_data_parser/DataParser.py --dir=<path_to_icu_data_files> --dir-relative=True --log=DEBUG
 ```
 
 Where:
@@ -97,7 +97,7 @@ If no `--log` argument is provided, the default log level is `DEBUG`.
 So you can also run the script with the default parameters, by running:
 
 ```bash
-venv/Scripts/python src/main.py
+venv/Scripts/python src/icu_data_parser/DataParser.py
 ```
 
 ## Testing

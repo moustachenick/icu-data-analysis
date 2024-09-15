@@ -10,11 +10,11 @@ from sklearn.metrics import mean_squared_error
 from icu_data_parser.DataPreProcessor import DataPreProcessor
 from icu_data_regression_models.BaselineHistoryRegressionModel import BaselineHistoryRegressionModel
 
-data_processor = DataPreProcessor()
+file_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'data', 'final_data.csv'))
 
-filtered_df = data_processor.replace_missing_values()
+data_processor = DataPreProcessor(file_path)
 
-combined_df = data_processor.known_nearest_neighbor_imputer(filtered_df)
+cleaned_df = data_processor.pre_process_dataset()
 
 # initialize a new BaseSimpleRegressor object
 baseline_regressor = BaselineHistoryRegressionModel()
@@ -25,7 +25,7 @@ baseline_regressor = BaselineHistoryRegressionModel()
 
 # Filter the data to include only the rows of patient_id "1001"
 patient_id = 1001
-filtered_data = combined_df[combined_df['patient_id'] == patient_id]
+filtered_data = cleaned_df[cleaned_df['patient_id'] == patient_id]
 
 # Filter the data to include only the rows up to ( and not including) timestamp "2013-12-21 11:30:00"
 timestamp = '2013-12-21 11:00:00'
@@ -42,7 +42,7 @@ baseline_regressor.fit(X_train, y_train)
 
 # Filter the data to include only the rows of this patient_id, and at that timestamp
 
-X_test = combined_df[(combined_df['patient_id'] == patient_id) & (combined_df['timestamp'] == timestamp)]
+X_test = cleaned_df[(cleaned_df['patient_id'] == patient_id) & (cleaned_df['timestamp'] == timestamp)]
 y_test = X_test['icp']
 
 prediction = baseline_regressor.predict(X_test.drop(columns=['icp']))
@@ -60,8 +60,8 @@ print(
 # We can now use the Regressor to predict the ICP values for the rest of the data.
 
 # Split the data into features (X) and target (y)
-X = combined_df.drop(columns=['icp'])
-y = combined_df['icp']
+X = cleaned_df.drop(columns=['icp'])
+y = cleaned_df['icp']
 
 # Let's use only the first 20% of the data, for speed (this will be removed in the final version)
 X_original = X

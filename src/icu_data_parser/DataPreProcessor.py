@@ -6,6 +6,29 @@ from pathlib import Path
 
 
 class DataPreProcessor:
+
+      def __init__(self, file_path):
+            self.file_path = file_path
+
+      def pre_process_dataset(self):
+            filtered_df = self.replace_missing_values()
+
+            combined_df = self.known_nearest_neighbor_imputer(filtered_df)
+
+            cleaned_df = self.delete_negative_icp_values(combined_df)
+
+            # Save also the cleaned data to a CSV file
+            # Construct the file path
+            output_dir = Path(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'data')))
+            output_dir.mkdir(parents=True, exist_ok=True)  # Ensure the directory exists
+
+            filepath = output_dir / 'cleaned_df.csv'
+
+
+            cleaned_df.to_csv(filepath)
+
+            return cleaned_df
+           
       
       def print_percentages_of_rows_with_missing_values(self, dataframe):
         # Function to print the percentage of rows that have more than 1 column with missing values
@@ -22,7 +45,7 @@ class DataPreProcessor:
 
       def replace_missing_values(self):
             # Construct the absolute path
-            file_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'final_data.csv'))
+            file_path = self.file_path
             
             # Read the data from the CSV file
             df = pd.read_csv(file_path, engine='python')
@@ -114,7 +137,5 @@ class DataPreProcessor:
 
             # Print the updated DataFrame details
             print("Total Rows after deleting negative ICP values =", len(cleaned_df))
-
-            
 
             return cleaned_df

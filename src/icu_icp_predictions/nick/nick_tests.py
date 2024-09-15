@@ -16,27 +16,13 @@ from icu_data_regression_models.BaselineMeanRegressionModel import BaselineMeanR
 from icu_data_parser.DataPreProcessor import DataPreProcessor
 from icu_data_regression_models.BaselineHistoryRegressionModel import BaselineHistoryRegressionModel
 from icu_data_regression_models.RegressionModelPlotter import RegressionModelPlotter
-from pathlib import Path
 
 
+file_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'data', 'final_data.csv'))
 
-data_processor = DataPreProcessor()
+data_processor = DataPreProcessor(file_path)
 
-filtered_df = data_processor.replace_missing_values()
-
-combined_df = data_processor.known_nearest_neighbor_imputer(filtered_df)
-
-cleaned_df = data_processor.delete_negative_icp_values(combined_df)
-
-
-# Construct the file path
-output_dir = Path(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'data')))
-output_dir.mkdir(parents=True, exist_ok=True)  # Ensure the directory exists
-
-filepath = output_dir / 'cleaned_df.csv'
-
-
-cleaned_df.to_csv(filepath)
+cleaned_df = data_processor.pre_process_dataset()
 
 # Split the data into features (X) and target (y)
 X = cleaned_df.drop(columns=['icp'])
@@ -272,3 +258,42 @@ plt.xlabel('Fold', fontsize=14)
 plt.ylabel('Mean Squared Error', fontsize=14)
 plt.legend()
 plt.show()
+
+
+# We want to predict the ICP value for patient with id "1001", at the timestamp "2013-12-21 11:30:00".
+# So we need to train the Regressor on the data up to that timestamp.
+# We will filter the data to include only the rows of this patient_id, and up to that timestamp.
+
+# Filter the data to include only the rows of patient_id "1001"
+patient_id = 1001
+filtered_data = cleaned_df[cleaned_df['patient_id'] == patient_id]
+
+# Filter the data to include only the rows up to ( and not including) timestamp "2013-12-21 11:30:00"
+timestamp = '2013-12-21 11:00:00'
+filtered_data = filtered_data[filtered_data['timestamp'] < timestamp]
+
+# Split the filtered data into features (X) and target (y)
+X_train = filtered_data.drop(columns=['icp'])
+y_train = filtered_data['icp']
+
+# Fit the Regressor on the filtered data
+history_regressor.fit(X_train, y_train)
+
+# Predict the ICP value for the patient_id at the timestamp
+
+# Filter the data to include only the rows of this patient_id, and at that timestamp
+
+X_test = cleaned_df[(cleaned_df['patient_id'] == patient_id) & (cleaned_df['timestamp'] == timestamp)]
+y_test = X_test['icp']
+
+prediction = history_regressor.predict(X_test.drop(columns=['icp']))
+
+real = y_test.values[0]
+# Get the predicted ICP value
+predicted = prediction[0]
+
+# Using f-strings for aligned printing
+print(
+    f"\n{'Predicted ICP value for patient_id:':<40} {patient_id:<10} {'at timestamp:':<20} {timestamp:<20} {'is:':<5} {predicted:<10}")
+print(
+    f"{'Real ICP value for patient_id:':<40} {patient_id:<10} {'at timestamp:':<20} {timestamp:<20} {'is:':<5} {real:<10}")

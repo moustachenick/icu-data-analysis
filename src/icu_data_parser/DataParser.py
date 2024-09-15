@@ -2,6 +2,16 @@ import os
 import csv
 from datetime import datetime, timedelta
 
+import argparse
+import logging
+from LoggingCustomFormatter import CustomFormatter
+
+logger = logging.getLogger(__name__)
+parser = argparse.ArgumentParser()
+parser.add_argument('--directory', '-dir', help="the directory to scan for files", type=str, default="../data")
+parser.add_argument('--log', '-l', help="log level (DEBUG, WARN, ERROR)", type=str, default="DEBUG")
+parser.add_argument('--dir-relative', '-dr', help="directory path is relative", type=bool, default="True")
+
 """
     A class used to parse ICU data files, and produce a final dataset file.
 """
@@ -285,3 +295,52 @@ class Helpers:
             line = line.rstrip()
             if line:
                 yield line
+
+
+def main(data_dir):
+    logger.debug(f"Scanning directory {data_dir}")
+    file_names_to_parse = [
+        "ICP.txt",
+        "CPP.txt",
+        "Glucose.txt",
+        "Haemoglobin.txt",
+        "Heart rate.txt",
+        "Mean blood pressure.txt",
+        "PaCO2.txt",
+        "PaO2.txt",
+        "PEEP.txt",
+        "PH.txt",
+        "Respiration Rate.txt",
+        "SpO2.txt",
+        "Temperature.txt",
+        "episodes with high icp.txt",
+    ]
+    files_to_parse = []
+    icu_data_parser = DataParser(logger)
+    for file in file_names_to_parse:
+        logger.debug(f"Found file {data_dir + os.sep + file}")
+        if file.endswith(".txt"):
+            files_to_parse.append(data_dir + os.sep + file)
+    icu_data_parser.parse(files_to_parse, data_dir)
+
+
+def set_up_logger(log_level):
+    # Create a handler
+    c_handler = logging.StreamHandler()
+    # Create a formatter and attach it to the handler
+    c_handler.setFormatter(CustomFormatter())
+    # link handler to logger
+    logger.addHandler(c_handler)
+    # Set logging level to the logger
+    logger.setLevel(log_level)  # <-- THIS!
+
+
+if __name__ == '__main__':
+    args = parser.parse_args()
+    set_up_logger(args.log.upper())
+    directory = args.directory
+    if directory is None:
+        raise Exception("root directory argument is required")
+    if args.dir_relative:
+        directory = os.path.join(os.path.abspath(os.path.dirname(__file__)), directory)
+    main(directory)
