@@ -322,3 +322,52 @@ print(coefficients)
 # Identify important features
 important_features = coefficients[coefficients != 0].index.tolist()
 print("Important features selected by Lasso:", important_features)
+
+# Now let's try to keep only the important features and see if the Linear model performance improves
+
+# Prepare training and testing sets with only the important features
+X_train_important = X_train[important_features]
+X_test_important = X_test[important_features]
+
+# Scale the features
+scaler = StandardScaler()
+X_train_important_scaled = scaler.fit_transform(X_train_important)
+X_test_important_scaled = scaler.transform(X_test_important)
+
+# Use Linear Regression model with only the important features
+linear_regression_important = LinearRegression()
+linear_regression_important.fit(X_train_important_scaled, y_train)
+
+# Make predictions
+linear_predictions_important = linear_regression_important.predict(X_test_important_scaled)
+
+# Perform 10-fold cross-validation for the Linear Regression model with only the important features
+
+linear_cv_scores_important = cross_val_score(linear_regression_important, X_lr, y, cv=kf, scoring='neg_mean_squared_error')
+
+print('\n\nLinear CV Scores:', linear_cv_scores_important)
+
+# Convert scores to positive values
+linear_cv_scores_important = -linear_cv_scores_important
+
+print('\nCross-Validation Results:')
+print('Linear Regression 10-fold CV Mean Absolute Error (only important attributes):', np.absolute(linear_cv_scores_important))
+
+# Evaluate the model
+mse_important = mean_squared_error(y_test, linear_predictions_important)
+linear_mae_important = mean_absolute_error(y_test, linear_predictions_important)
+
+print(f"Linear Regression with Important Features Test MSE: {mse_important}")
+
+# Compare the results with the original Linear Regression model
+print('\n\nMean Squared Error Results (Compared):')
+print('Linear Regression Mean Squared Error:', linear_mse)
+print('Linear Regression with Important Features Mean Squared Error:', mse_important)
+
+print('\n\nRoot Mean Squared Error Results (Compared):')
+print('Linear Regression Root Mean Squared Error:', linear_rmse)
+print('Linear Regression with Important Features Root Mean Squared Error:', root_mean_squared_error(y_test, linear_predictions_important))
+
+print('\n\nAbsolute Error Results (Compared):')
+print('Linear Regression Absolute Error:', linear_mae)
+print('Linear Regression with Important Features Absolute Error:', linear_mae_important)
