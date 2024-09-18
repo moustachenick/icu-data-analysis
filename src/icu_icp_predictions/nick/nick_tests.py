@@ -328,6 +328,7 @@ print("Important features selected by Lasso:", important_features)
 # Prepare training and testing sets with only the important features
 X_train_important = X_train[important_features]
 X_test_important = X_test[important_features]
+X_lr_important = X_lr[important_features]
 
 # Scale the features
 scaler = StandardScaler()
@@ -341,33 +342,66 @@ linear_regression_important.fit(X_train_important_scaled, y_train)
 # Make predictions
 linear_predictions_important = linear_regression_important.predict(X_test_important_scaled)
 
+# Evaluate the model
+mse_important = mean_squared_error(y_test, linear_predictions_important)
+mae_important = mean_absolute_error(y_test, linear_predictions_important)
+r2_important = r2_score(y_test, linear_predictions_important)
+
+# Compare the models
+
+print('\n\nComparison of Linear Regression Model with and without Important Features:\n')
+
+print(f'MSE for Linear Model 1 (all columns): {linear_mse}')
+print(f'MSE for Linear Model 2 (important columns): {mse_important}')
+print('\n')
+print(f'MAE for Linear Model 1 (all columns): {linear_mae}')
+print(f'MAE for Linear Model 2 (important columns): {mae_important}')
+print('\n')
+print(f'R2 Score for Linear Model 1 (all columns): {r2_score(y_test, linear_predictions)}')
+print(f'R2 Score for Linear Model 2 (important columns): {r2_important}')
+
 # Perform 10-fold cross-validation for the Linear Regression model with only the important features
 
-linear_cv_scores_important = cross_val_score(linear_regression_important, X_lr, y, cv=kf, scoring='neg_mean_squared_error')
+linear_cv_scores_important = cross_val_score(linear_regression_important, X_lr_important, y, cv=kf, scoring='neg_mean_squared_error')
 
 print('\n\nLinear CV Scores:', linear_cv_scores_important)
 
 # Convert scores to positive values
 linear_cv_scores_important = -linear_cv_scores_important
 
-print('\nCross-Validation Results:')
-print('Linear Regression 10-fold CV Mean Absolute Error (only important attributes):', np.absolute(linear_cv_scores_important))
+print('\nCross-Validation Results:\n')
+print(f'Cross-validation MSE for Linear Model 1 (all columns): {linear_cv_scores.mean()}')
+print(f'Cross-validation MSE for Linear Model 2 (important columns): {linear_cv_scores_important.mean()}')
 
-# Evaluate the model
-mse_important = mean_squared_error(y_test, linear_predictions_important)
-linear_mae_important = mean_absolute_error(y_test, linear_predictions_important)
+print(f'Number of features in Model 1 (all columns): {linear_regression.coef_.shape[0]}')
+print(f'Number of features in Model 2 (important columns): {linear_regression_important.coef_.shape[0]}')
 
-print(f"Linear Regression with Important Features Test MSE: {mse_important}")
+# Residual Analysis
 
-# Compare the results with the original Linear Regression model
-print('\n\nMean Squared Error Results (Compared):')
-print('Linear Regression Mean Squared Error:', linear_mse)
-print('Linear Regression with Important Features Mean Squared Error:', mse_important)
+# Residuals for Model 1 (all columns)
+residuals_all_columns = y_test - linear_predictions
 
-print('\n\nRoot Mean Squared Error Results (Compared):')
-print('Linear Regression Root Mean Squared Error:', linear_rmse)
-print('Linear Regression with Important Features Root Mean Squared Error:', root_mean_squared_error(y_test, linear_predictions_important))
+# Residuals for Model 2 (only important columns)
+residuals_important_columns = y_test - linear_predictions_important
 
-print('\n\nAbsolute Error Results (Compared):')
-print('Linear Regression Absolute Error:', linear_mae)
-print('Linear Regression with Important Features Absolute Error:', linear_mae_important)
+plt.figure(figsize=(12, 6))
+
+# Plot residuals for Model 1 (all columns)
+plt.subplot(1, 2, 1)
+plt.scatter(linear_predictions, residuals_all_columns)
+plt.title('Residuals for Linear Model 1 (all columns)')
+plt.xlabel('Predicted')
+plt.ylabel('Residuals')
+
+# Plot residuals for Model 2 (only important columns)
+plt.subplot(1, 2, 2)
+plt.scatter(linear_predictions_important, residuals_important_columns)
+plt.title('Residuals for Linear Model 2 (important columns)')
+plt.xlabel('Predicted')
+plt.ylabel('Residuals')
+
+plt.show()
+
+# Comparison of coefficients
+print(f'Coefficients for Model 1 (all columns): {linear_regression.coef_}')
+print(f'Coefficients for Model 2 (important columns): {linear_regression_important.coef_}')
