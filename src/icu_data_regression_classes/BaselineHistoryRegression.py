@@ -1,11 +1,11 @@
-from icu_data_regression_models.RegressionModel import RegressionModel
+from icu_data_regression_classes.Regression import Regression
 import pandas as pd
 from sklearn.base import BaseEstimator, RegressorMixin
 
 
 # This class is a simple regressor that predicts the ICP based on the closest (timestamp) ICP value for each patient
 # in the test set. If the patient is not in the training set, then the average icp value of this patient is predicted.
-class BaselineHistoryRegressionModel(RegressionModel, BaseEstimator, RegressorMixin):
+class BaselineHistoryRegression(Regression, BaseEstimator, RegressorMixin):
 
     def __init__(self):
         self.data = pd.DataFrame(columns=['patient_id', 'timestamp', 'icp'])

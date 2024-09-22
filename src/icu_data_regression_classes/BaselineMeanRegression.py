@@ -1,10 +1,10 @@
 import pandas as pd
 from sklearn.base import BaseEstimator, RegressorMixin
 
-from icu_data_regression_models.RegressionModel import RegressionModel
+from icu_data_regression_classes.Regression import Regression
 
 
-class BaselineMeanRegressionModel(RegressionModel, BaseEstimator, RegressorMixin):
+class BaselineMeanRegression(Regression, BaseEstimator, RegressorMixin):
     def __init__(self):
         self.data = pd.DataFrame(columns=['patient_id', 'timestamp', 'icp'])
 

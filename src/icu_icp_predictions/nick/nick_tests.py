@@ -12,14 +12,13 @@ from sklearn.metrics import mean_squared_error
 from sklearn.metrics import mean_absolute_error
 from sklearn.metrics import root_mean_squared_error
 from sklearn.model_selection import KFold, cross_val_score
-from icu_data_regression_models.BaselineMeanRegressionModel import BaselineMeanRegressionModel
+from icu_data_regression_classes.BaselineMeanRegression import BaselineMeanRegression
 from icu_data_parser.DataPreProcessor import DataPreProcessor
-from icu_data_regression_models.BaselineHistoryRegressionModel import BaselineHistoryRegressionModel
-from icu_data_regression_models.RegressionModelPlotter import RegressionModelPlotter
+from icu_data_regression_classes.BaselineHistoryRegression import BaselineHistoryRegression
+from icu_data_regression_classes.RegressionModelPlotter import RegressionModelPlotter
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import Lasso
 from sklearn.metrics import r2_score
-from sklearn.linear_model import LassoCV
 
 
 file_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'data', 'final_data.csv'))
@@ -47,14 +46,14 @@ X_test = X[train_size:]
 y_test = y[train_size:]
 
 # Initialize and train the Baseline Advanced Regressor
-baseline_mean_regression_model = BaselineMeanRegressionModel()
+baseline_mean_regression_model = BaselineMeanRegression()
 baseline_mean_regression_model.fit(X_train, y_train)
 
 # Make predictions with the Baseline Advanced Regressor
 baseline_predictions = baseline_mean_regression_model.predict(X_test)
 
 # Initialize and train the Baseline History Regressor
-history_regressor = BaselineHistoryRegressionModel()
+history_regressor = BaselineHistoryRegression()
 history_regressor.fit(X_train, y_train)
 
 # Make predictions with the Baseline History Regressor
