@@ -1,6 +1,4 @@
 import matplotlib.pyplot as plt
-import numpy as np
-import itertools
 
 
 class RegressionModelPlotter:
@@ -15,22 +13,27 @@ class RegressionModelPlotter:
         :param y_test: Actual values
         :param predictions_dict: Dictionary where keys are model names and values are predictions
         """
-        x = np.linspace(min(y_test), max(y_test), 400)
-        y_ref = x
+        colors = ['red', 'green', 'orange', 'purple', 'brown']  # Add more colors if needed
+        linestyles = ['-', '--', '-.', ':', '-']  # Different line styles
 
-        plt.figure(figsize=(14, 8))
+        plt.figure(figsize=(10, 6))
 
-        # Define a color cycle
-        colors = itertools.cycle(plt.cm.tab10.colors)
+        plt.scatter(range(len(y_test)), y_test.values, label='Actual ICP', color='blue', marker='o')
 
-        for model_name, predictions in predictions_dict.items():
-            color = next(colors)
-            plt.scatter(y_test, predictions, label=f'{model_name} Predictions', color=color)
+        # Step 3: Plot line plot for each algorithm
+        for i, (algo_name, y_pred) in enumerate(predictions_dict.items()):
+            plt.plot(range(len(y_pred)), y_pred, 
+            label=algo_name, 
+            color=colors[i % len(colors)],  # Assign a color to each algorithm
+            linestyle=linestyles[i % len(linestyles)],  # Assign a linestyle
+            linewidth=2)  # Set line width for better visibility
 
-        plt.plot(x, y_ref, color="black", linewidth=1, label='Perfect Prediction')
-        plt.axhline(0, color='black', linewidth=1)
-        plt.axvline(0, color='black', linewidth=1)
-        plt.xlabel('Actual Values', fontsize=14)
-        plt.ylabel('Predictions', fontsize=14)
+        # Step 4: Add titles and labels
+        plt.title('Actual vs Predicted ICP from Multiple Algorithms')
+        plt.xlabel('Index')
+        plt.ylabel('ICP')
         plt.legend()
+
+        # Step 5: Display the plot
+        plt.grid(True)
         plt.show(block=False)
