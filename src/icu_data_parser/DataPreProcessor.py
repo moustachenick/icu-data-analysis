@@ -161,18 +161,24 @@ class DataPreProcessor:
 
             # Make a copy of the DataFrame to avoid the SettingWithCopyWarning
             data = data.copy()
-            # Define the maximum time gap (e.g., 1 hour) for considering the "next" timestamp
-            max_time_gap = pd.Timedelta(hours=1)
-
             # Convert the timestamp column to datetime format
             data['timestamp'] = pd.to_datetime(data['timestamp'])
 
-            # Calculate the time differences between consecutive rows for each patient
-            data['time_diff'] = data.groupby('patient_id')['timestamp'].diff().shift(-1)
+            # Shift the timestamp first, then calculate the difference between consecutive rows
+            data['time_shifted'] = data.groupby('patient_id')['timestamp'].shift(-1)
+
+            # Now calculate the time differences between consecutive rows for each patient
+            data['time_diff'] = data['time_shifted'] - data['timestamp']
+
+            # Drop the 'time_shifted' column as it is no longer needed
+            data = data.drop(columns=['time_shifted'])
+
+            # Define the maximum time gap (e.g., 1 hour) for considering the "next" timestamp
+            max_time_gap = pd.Timedelta(hours=1)
 
             # Shift the ICP column where the time difference is within the acceptable limit (e.g., 1 hour)
             data['icp_next'] = data.groupby('patient_id')['icp'].shift(-1)
-            
+
             # Use .loc to avoid the SettingWithCopyWarning when modifying the DataFrame
             data.loc[data['time_diff'] > max_time_gap, 'icp_next'] = None  # Exclude rows with large time gaps
 

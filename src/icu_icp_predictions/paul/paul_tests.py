@@ -30,8 +30,8 @@ cleaned_df = data_processor.pre_process_dataset()
 # We can now use the Regressor to predict the ICP values for the rest of the data.
 
 # Prepare the features and target variable
-X = cleaned_df.drop(columns=['icp', 'icp_next', 'time_diff'])  # Features
-y = cleaned_df['icp_next']  # Target is the ICP at the next valid timestamp
+X = cleaned_df.drop(columns=['icp', 'icp_next', 'time_diff', 'time_shifted'])  # Features
+y = cleaned_df['icp_next']  # Target is the "next ICP" at the next valid timestamp
 
 # Let's use only the first 50% of the data, for speed (this will be removed in the final version)
 X_original = X
