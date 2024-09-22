@@ -185,4 +185,7 @@ class DataPreProcessor:
             # Drop rows where the target (icp_next) is NaN, using .loc again to avoid the warning
             data = data.loc[~data['icp_next'].isna()]
 
+            # Drop the 'time_diff' column as it is no longer needed
+            data = data.drop(columns=['time_diff'])
+
             return data
