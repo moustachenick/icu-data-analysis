@@ -10,7 +10,7 @@ from sklearn.linear_model import LinearRegression, Ridge
 from sklearn.metrics import mean_squared_error
 from sklearn.metrics import mean_absolute_error
 from sklearn.metrics import root_mean_squared_error
-from sklearn.model_selection import KFold, cross_val_score
+from sklearn.model_selection import KFold, cross_val_score, train_test_split
 from icu_data_regression_classes.BaselineMeanRegression import BaselineMeanRegression
 from icu_data_parser.DataPreProcessor import DataPreProcessor
 from icu_data_regression_classes.BaselineHistoryRegression import BaselineHistoryRegression
@@ -44,11 +44,7 @@ train_size = int(0.8 * X.shape[0])
 print('\nTotal size: ', X.shape[0], '\tTrain size:', train_size, '\tTest size:', X.shape[0] - train_size,
       '\tPercentage of the original dataset:', round((train_size / X_original.shape[0]) * 100), '%')
 
-X_train = X[:train_size]
-y_train = y[:train_size]
-
-X_test = X[train_size:]
-y_test = y[train_size:]
+X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=train_size, test_size=X.shape[0] - train_size, random_state=42)
 
 # Initialize and train the Baseline Advanced Regression model
 baseline_mean_regression_model = BaselineMeanRegression()

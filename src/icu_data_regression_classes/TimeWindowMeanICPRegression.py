@@ -46,7 +46,7 @@ class TimeWindowMeanICPRegression(Regression, BaseEstimator, RegressorMixin):
             timestamp = pd.to_datetime(timestamp)
             
             # subtract the days_window from the timestamp to get the cutoff time
-            # cuoff_time is the oldest timestamp that we will consider for the mean icp calculation
+            # cutoff_time is the oldest timestamp that we will consider for the mean icp calculation
             # all the rows in the training data that are older than the cutoff_time will be ignored
             cutoff_time = timestamp - pd.Timedelta(days=self.days_window)
 
