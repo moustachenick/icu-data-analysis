@@ -17,13 +17,14 @@ class DataPreProcessor:
 
             cleaned_df = self.delete_negative_icp_values(combined_df)
 
+            cleaned_df = self.shift_icp_values(cleaned_df)
+
             # Save also the cleaned data to a CSV file
             # Construct the file path
             output_dir = Path(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'data')))
             output_dir.mkdir(parents=True, exist_ok=True)  # Ensure the directory exists
 
             filepath = output_dir / 'cleaned_df.csv'
-
 
             cleaned_df.to_csv(filepath)
 
@@ -139,3 +140,43 @@ class DataPreProcessor:
             print("Total Rows after deleting negative ICP values =", len(cleaned_df))
 
             return cleaned_df
+      
+      def shift_icp_values(self, data):
+            # A problem that we have in the dataset, is that each row has the ICP at that timestamp, 
+            # and we actually want to predict the ICP in the "next" timestamp. 
+            # So for example to be able to say: "OK, I see that patient with id 1001 right now has X temperature, Y blood pressure, and Z paco2, 
+            # so what is his ICP going to be in an hour"? 
+            # we could shift the ICP values by 1 row, so that each row has the ICP value at the next timestamp.
+            # A problem is that the measurements are not taken at regular intervals, so we cannot just shift the ICP values by 1 row.
+            # Instead of shifting the ICP values by one row, we need to ensure that the next timestamp is within a reasonable timeframe, such as within an hour.
+            # We can add a new column called 'next_icp' that contains the ICP value at the next timestamp.
+
+            # So, the approach is to:
+            # 1.  Calculate Time Differences Between Consecutive Rows:
+            #     For each patient, calculate the time difference between consecutive measurements. 
+            #     Only keep rows where the time difference is within a specified threshold (e.g., 1 hour)
+            # 2. Shift ICP Values for Rows with Valid Gaps: 
+            #     Once the time gaps are calculated, shift the ICP values for rows that meet the time threshold. 
+            #     Rows where the gap exceeds the threshold can be excluded..
+
+            # Make a copy of the DataFrame to avoid the SettingWithCopyWarning
+            data = data.copy()
+            # Define the maximum time gap (e.g., 1 hour) for considering the "next" timestamp
+            max_time_gap = pd.Timedelta(hours=1)
+
+            # Convert the timestamp column to datetime format
+            data['timestamp'] = pd.to_datetime(data['timestamp'])
+
+            # Calculate the time differences between consecutive rows for each patient
+            data['time_diff'] = data.groupby('patient_id')['timestamp'].diff().shift(-1)
+
+            # Shift the ICP column where the time difference is within the acceptable limit (e.g., 1 hour)
+            data['icp_next'] = data.groupby('patient_id')['icp'].shift(-1)
+            
+            # Use .loc to avoid the SettingWithCopyWarning when modifying the DataFrame
+            data.loc[data['time_diff'] > max_time_gap, 'icp_next'] = None  # Exclude rows with large time gaps
+
+            # Drop rows where the target (icp_next) is NaN, using .loc again to avoid the warning
+            data = data.loc[~data['icp_next'].isna()]
+
+            return data

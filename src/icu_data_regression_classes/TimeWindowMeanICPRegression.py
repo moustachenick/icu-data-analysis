@@ -11,7 +11,7 @@ class TimeWindowMeanICPRegression(Regression, BaseEstimator, RegressorMixin):
         Initialize the model with the number of days to consider before the test timestamp.
         :param days_window: The number of days before the test timestamp to use for prediction.
         """
-        self.data = pd.DataFrame(columns=['patient_id', 'timestamp', 'icp'])
+        self.data = pd.DataFrame(columns=['patient_id', 'timestamp', 'icp_next'])
         self.days_window = days_window  # This defines how many past days to consider
 
     def fit(self, X_train, y_train):
@@ -52,11 +52,11 @@ class TimeWindowMeanICPRegression(Regression, BaseEstimator, RegressorMixin):
 
             # If no data is available in the time window, use the average ICP of all patients.
             if patient_data.empty:
-                prediction = self.data['icp'].mean()
+                prediction = self.data['icp_next'].mean()
                 predictions.append(prediction)
             else:
                 # Calculate the mean icp value within the time window.
-                prediction = patient_data['icp'].mean()
+                prediction = patient_data['icp_next'].mean()
                 predictions.append(prediction)
 
         return predictions

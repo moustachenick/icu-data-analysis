@@ -27,52 +27,11 @@ data_processor = DataPreProcessor(file_path)
 
 cleaned_df = data_processor.pre_process_dataset()
 
-# initialize a new BaseSimpleRegressor object
-baseline_regressor = BaselineHistoryRegression()
-
-# We want to predict the ICP value for patient with id "1001", at the timestamp "2013-12-21 11:30:00".
-# So we need to train the Regressor on the data up to that timestamp.
-# We will filter the data to include only the rows of this patient_id, and up to that timestamp.
-
-# Filter the data to include only the rows of patient_id "1001"
-patient_id = 1001
-filtered_data = cleaned_df[cleaned_df['patient_id'] == patient_id]
-
-# Filter the data to include only the rows up to ( and not including) timestamp "2013-12-21 11:30:00"
-timestamp = '2013-12-21 11:00:00'
-filtered_data = filtered_data[filtered_data['timestamp'] < timestamp]
-
-# Split the filtered data into features (X) and target (y)
-X_train = filtered_data.drop(columns=['icp'])
-y_train = filtered_data['icp']
-
-# Fit the Regressor on the filtered data
-baseline_regressor.fit(X_train, y_train)
-
-# Predict the ICP value for the patient_id at the timestamp
-
-# Filter the data to include only the rows of this patient_id, and at that timestamp
-
-X_test = cleaned_df[(cleaned_df['patient_id'] == patient_id) & (cleaned_df['timestamp'] == timestamp)]
-y_test = X_test['icp']
-
-prediction = baseline_regressor.predict(X_test.drop(columns=['icp']))
-
-real = y_test.values[0]
-# Get the predicted ICP value
-predicted = prediction[0]
-
-# Using f-strings for aligned printing
-print(
-    f"\n{'Predicted ICP value for patient_id:':<40} {patient_id:<10} {'at timestamp:':<20} {timestamp:<20} {'is:':<5} {predicted:<10}")
-print(
-    f"{'Real ICP value for patient_id:':<40} {patient_id:<10} {'at timestamp:':<20} {timestamp:<20} {'is:':<5} {real:<10}")
-
 # We can now use the Regressor to predict the ICP values for the rest of the data.
 
-# Split the data into features (X) and target (y)
-X = cleaned_df.drop(columns=['icp'])
-y = cleaned_df['icp']
+# Prepare the features and target variable
+X = cleaned_df.drop(columns=['icp', 'icp_next', 'time_diff'])  # Features
+y = cleaned_df['icp_next']  # Target is the ICP at the next valid timestamp
 
 # Let's use only the first 50% of the data, for speed (this will be removed in the final version)
 X_original = X
