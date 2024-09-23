@@ -16,6 +16,11 @@ class RegressionModelPlotter:
         colors = ['red', 'green', 'orange', 'purple', 'brown']  # Add more colors if needed
         linestyles = ['-', '--', '-.', ':', '-']  # Different line styles
 
+        # We will keep only the first 100 values for better visibility
+        y_test = y_test[:100]
+        for algo_name, y_pred in predictions_dict.items():
+            predictions_dict[algo_name] = y_pred[:100]
+
         plt.figure(figsize=(10, 6))
 
         plt.scatter(range(len(y_test)), y_test.values, label='Actual ICP', color='blue', marker='o')

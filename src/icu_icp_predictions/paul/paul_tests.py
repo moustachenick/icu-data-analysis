@@ -44,7 +44,8 @@ train_size = int(0.8 * X.shape[0])
 print('\nTotal size: ', X.shape[0], '\tTrain size:', train_size, '\tTest size:', X.shape[0] - train_size,
       '\tPercentage of the original dataset:', round((train_size / X_original.shape[0]) * 100), '%')
 
-X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=train_size, test_size=X.shape[0] - train_size, random_state=42)
+X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=train_size, test_size=X.shape[0] - train_size,
+                                                    random_state=42)
 
 # Initialize and train the Baseline Advanced Regression model
 baseline_mean_regression_model = BaselineMeanRegression()
@@ -71,17 +72,17 @@ resultsPerTimeWindow = {}
 for days in [1, 2, 3, 4, 5, 6, 7]:
     # Initialize the model with the current time window
     model = TimeWindowMeanICPRegression(days_window=days)
-    
+
     # Fit the model with the training data
     model.fit(X_train, y_train)
-    
+
     # Predict ICP on the test data
     y_pred = model.predict(X_test)
-    
+
     # Calculate evaluation metrics (e.g., MSE, MAE)
     mse = mean_squared_error(y_test, y_pred)
     mae = mean_absolute_error(y_test, y_pred)
-    
+
     # Store the results for this time window
     resultsPerTimeWindow[days] = {
         'MSE': mse,
@@ -94,7 +95,7 @@ for days, results in resultsPerTimeWindow.items():
 
 # Keep the best model based on the lowest MSE
 best_time_window = min(resultsPerTimeWindow, key=lambda x: resultsPerTimeWindow[x]['MSE'])
-print(f"Best Time Window: {best_time_window} days")
+print(f"\nBest Time Window: {best_time_window} days\n")
 time_window_regression_model = TimeWindowMeanICPRegression(days_window=best_time_window)
 time_window_regression_model.fit(X_train, y_train)
 time_window_predictions = time_window_regression_model.predict(X_test)
@@ -108,7 +109,6 @@ X_cleaned = X.drop(columns=['timestamp', 'patient_id', 'date_of_birth'])
 scaler = StandardScaler()
 X_train_lr = scaler.fit_transform(X_train_lr)
 X_test_lr = scaler.transform(X_test_lr)
-
 
 # Initialize and train the Linear Regression model
 linear_regression = LinearRegression()
@@ -152,7 +152,6 @@ history_rmse = root_mean_squared_error(y_test, history_predictions)
 ridge_regression_rmse = root_mean_squared_error(y_test, ridge_regression_predictions)
 time_window_predictions_rmse = root_mean_squared_error(y_test, time_window_predictions)
 
-
 # Calculate the residuals
 history_residuals = y_test.values - history_predictions
 advanced_residuals = y_test.values - baseline_predictions
@@ -169,7 +168,11 @@ y_ref = x
 # Dictionary of model predictions
 predictions_dict = {
     'Linear Regression': linear_predictions,
-    f'Time Window Mean ICP Regression ({best_time_window} days)': time_window_predictions
+    f'Time Window Mean ICP Regression ({best_time_window} days)': time_window_predictions,
+    'Baseline Advanced Regressor': baseline_predictions,
+    'Baseline History Regressor': history_predictions,
+    'Ridge Regression': ridge_regression_predictions,
+    'Reference Line': y_ref
 }
 
 # Plot the results for all models
@@ -223,12 +226,15 @@ cv_results_df['BaselineHistoryRegressionModel'] = history_cv_scores
 cv_results_df['RidgeRegressionModel'] = ridge_cv_scores
 cv_results_df[f'TimeWindowMeanICPRegressionModel ({best_time_window} days)'] = time_window_cv_scores
 
+print(
+    f'\n\nAccording to the cross-validation results, the model with the lowest MSE is: {cv_results_df.mean().idxmin()}\n')
+
 # Plot the cross-validation results (mean squared error) for all models
 
 plt.figure(figsize=(14, 8))
+plt.plot(advanced_cv_scores, label='Baseline Advanced Regression')
 plt.plot(linear_cv_scores, label='Linear Regression')
-plt.plot(advanced_cv_scores, label='Baseline Advanced Regressor')
-plt.plot(history_cv_scores, label='Baseline History Regressor')
+plt.plot(history_cv_scores, label='Baseline History Regression')
 plt.plot(ridge_cv_scores, label='Ridge Regression')
 plt.plot(time_window_cv_scores, label=f'Time Window Mean ICP Regression ({best_time_window} days)')
 plt.xlabel('Fold', fontsize=14)
@@ -239,15 +245,17 @@ plt.show()
 # Display the Mean Squared Error (MSE), Mean Absolute Error (MAE), and Root Mean Squared Error (RMSE) for all models, as a table
 
 results = {
-    'Model': ['Baseline Advanced Regressor', 'Baseline History Regressor', 'Linear Regression', 'Ridge Regression',
-                f'Time Window Mean ICP Regression ({best_time_window} days)'],
+    'Model': ['Baseline Advanced Regression', 'Baseline History Regression', 'Linear Regression', 'Ridge Regression',
+              f'Time Window Mean ICP Regression ({best_time_window} days)'],
     'MSE': [baseline_mse, history_mse, linear_mse, ridge_regression_mse, time_window_predictions_mse],
     'MAE': [baseline_mae, history_mae, linear_mae, ridge_regression_mae, time_window_predictions_mae],
     'RMSE': [baseline_rmse, history_rmse, linear_rmse, ridge_regression_rmse, time_window_predictions_rmse]
 }
 
-results_df = pd.DataFrame(results)
-print(results_df)
+algo_results_df = pd.DataFrame(results)
+print(algo_results_df)
+
+print(f'\nThe algorithm with the lowest MAE is: {algo_results_df["Model"][algo_results_df["MAE"].idxmin()]}')
 
 # From the cleaned_df, we want to check the importance of the features in predicting the ICP values.
 # Let's use the Lasso Regression model for this purpose.
@@ -276,7 +284,7 @@ y_pred_test = lasso.predict(X_test_scaled)
 coefficients = pd.Series(lasso.coef_, index=X_lasso.columns)
 
 # Display coefficients
-print("Lasso Coefficients:")
+print("\nLasso Coefficients:")
 print(coefficients)
 
 # Identify important features
@@ -304,7 +312,8 @@ linear_predictions_important = linear_regression_important.predict(X_test_import
 
 # Perform 10-fold cross-validation for the Linear Regression model with only the important features
 
-linear_cv_scores_important = cross_val_score(linear_regression_important, X_lr_important, y, cv=kf, scoring='neg_mean_squared_error')
+linear_cv_scores_important = cross_val_score(linear_regression_important, X_lr_important, y, cv=kf,
+                                             scoring='neg_mean_squared_error')
 
 # Convert scores to positive values
 linear_cv_scores_important = -linear_cv_scores_important
