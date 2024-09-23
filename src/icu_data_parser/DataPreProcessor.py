@@ -154,6 +154,7 @@ class DataPreProcessor:
         z_scores = (cleaned_df['icp'] - cleaned_df['icp'].mean()) / cleaned_df['icp'].std()
 
         # Define a threshold for the Z-scores (how many standard deviations away from the mean)
+        # TODO: Ask Nick for the threshold
         z_score_threshold = 7
 
         # Identify the outliers based on the Z-scores
