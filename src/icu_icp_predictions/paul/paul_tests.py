@@ -31,7 +31,7 @@ data_processor = DataPreProcessor(file_path)
 
 cleaned_df = data_processor.pre_process_dataset()
 
-# We can now use the Regressor to predict the ICP values for the rest of the data.
+# We can now use the Regression to predict the ICP values for the rest of the data.
 
 # Prepare the features and target variable
 X = cleaned_df.drop(columns=["icp", "icp_next"])  # Features
@@ -67,15 +67,15 @@ X_train, X_test, y_train, y_test = train_test_split(
 baseline_mean_regression_model = BaselineMeanRegression()
 baseline_mean_regression_model.fit(X_train, y_train)
 
-# Make predictions with the Baseline Advanced Regressor
+# Make predictions with the Baseline Advanced Regression
 baseline_predictions = baseline_mean_regression_model.predict(X_test)
 
-# Initialize and train the Baseline History Regressor
-history_regressor = BaselineHistoryRegression()
-history_regressor.fit(X_train, y_train)
+# Initialize and train the Baseline History Regression
+history_regression = BaselineHistoryRegression()
+history_regression.fit(X_train, y_train)
 
-# Make predictions with the Baseline History Regressor
-history_predictions = history_regressor.predict(X_test)
+# Make predictions with the Baseline History Regression
+history_predictions = history_regression.predict(X_test)
 
 # Time Window Mean ICP Regression Model
 
@@ -180,7 +180,7 @@ time_window_residuals = y_test.values - time_window_predictions
 accuracy_linear = linear_regression.score(X_test_lr, y_test)
 accuracy_ridge = ridge_regression.score(X_test_lr, y_test)
 accuracy_mean_baseline = baseline_mean_regression_model.score(X_test, y_test)
-accuracy_history = history_regressor.score(X_test, y_test)
+accuracy_history = history_regression.score(X_test, y_test)
 accuracy_time_window = time_window_regression_model.score(X_test, y_test)
 
 # Plotting
@@ -192,8 +192,8 @@ x = np.linspace(min(y_test), max(y_test), 400)
 predictions_dict = {
     "Linear Regression": linear_predictions,
     f"Time Window Mean ICP Regression ({best_time_window} days)": time_window_predictions,
-    "Baseline Advanced Regressor": baseline_predictions,
-    "Baseline History Regressor": history_predictions,
+    "Baseline Advanced Regression": baseline_predictions,
+    "Baseline History Regression": history_predictions,
     "Ridge Regression": ridge_regression_predictions,
 }
 
@@ -204,11 +204,11 @@ RegressionModelPlotter.plot_regression_models(y_test, predictions_dict)
 results_df = pd.DataFrame(
     {
         "Actual Values": y_test.values,
-        "BaselineHistoryRegressionModel": history_predictions,
-        "BaselineAdvancedRegressorModel": baseline_predictions,
+        "BaselineHistoryRegression": history_predictions,
+        "BaselineAdvancedRegression": baseline_predictions,
         "LinearRegressionModel": linear_predictions,
-        "RidgeRegressionModel": ridge_regression_predictions,
-        f"TimeWindowMeanICPRegressionModel ({best_time_window} days)": time_window_predictions,
+        "RidgeRegression": ridge_regression_predictions,
+        f"BaselineTimeWindowMeanICPRegression ({best_time_window} days)": time_window_predictions,
     }
 )
 
@@ -230,17 +230,17 @@ linear_cv_scores = -linear_cv_scores
 print("\nLinear Regression Model Cross-Validation MSE:", linear_cv_scores.mean())
 
 # Now we want to compare the cross-validation results of the Linear Regression model
-# with the Baseline Advanced Regressor and the Baseline History Regressor.
+# with the Baseline Advanced Regression and the Baseline History Regression.
 
-# Perform 10-fold cross-validation for the Baseline Advanced Regressor
+# Perform 10-fold cross-validation for the Baseline Advanced Regression
 advanced_cv_scores = cross_val_score(
     baseline_mean_regression_model, X, y, cv=kf, scoring="neg_mean_squared_error"
 )
 advanced_cv_scores = -advanced_cv_scores
 
-# Perform 10-fold cross-validation for the Baseline History Regressor
+# Perform 10-fold cross-validation for the Baseline History Regression
 history_cv_scores = cross_val_score(
-    history_regressor, X, y, cv=kf, scoring="neg_mean_squared_error"
+    history_regression, X, y, cv=kf, scoring="neg_mean_squared_error"
 )
 history_cv_scores = -history_cv_scores
 
@@ -258,10 +258,10 @@ time_window_cv_scores = -time_window_cv_scores
 
 # Add the cross-validation results to the DataFrame
 cv_results_df = pd.DataFrame({"LinearRegressionModel": linear_cv_scores})
-cv_results_df["BaselineAdvancedRegressorModel"] = advanced_cv_scores
-cv_results_df["BaselineHistoryRegressionModel"] = history_cv_scores
-cv_results_df["RidgeRegressionModel"] = ridge_cv_scores
-cv_results_df[f"TimeWindowMeanICPRegressionModel ({best_time_window} days)"] = (
+cv_results_df["BaselineAdvancedRegression"] = advanced_cv_scores
+cv_results_df["BaselineHistoryRegression"] = history_cv_scores
+cv_results_df["RidgeRegression"] = ridge_cv_scores
+cv_results_df[f"BaselineTimeWindowMeanICPRegression ({best_time_window} days)"] = (
     time_window_cv_scores
 )
 
