@@ -4,7 +4,7 @@ from sklearn.base import BaseEstimator, RegressorMixin
 
 
 # This class is a regressor that predicts the ICP based on the mean ICP value from the last N days for each patient
-class TimeWindowMeanICPRegression(Regression, BaseEstimator, RegressorMixin):
+class BaselineTimeWindowMeanICPRegression(Regression, BaseEstimator, RegressorMixin):
 
     def __init__(self, days_window=1):
         """

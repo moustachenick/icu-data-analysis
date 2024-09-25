@@ -17,8 +17,8 @@ from icu_data_regression_classes.BaselineHistoryRegression import (
     BaselineHistoryRegression,
 )
 from icu_data_regression_classes.RegressionModelPlotter import RegressionModelPlotter
-from icu_data_regression_classes.TimeWindowMeanICPRegression import (
-    TimeWindowMeanICPRegression,
+from icu_data_regression_classes.BaselineTimeWindowMeanICPRegression import (
+    BaselineTimeWindowMeanICPRegression,
 )
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import Lasso
@@ -87,7 +87,7 @@ resultsPerTimeWindow = {}
 # Loop over different time windows (e.g., 1 day, 2 days, 3 days, 4 days)
 for days in [1, 2, 3, 4, 5, 6, 7]:
     # Initialize the model with the current time window
-    model = TimeWindowMeanICPRegression(days_window=days)
+    model = BaselineTimeWindowMeanICPRegression(days_window=days)
 
     # Fit the model with the training data
     model.fit(X_train, y_train)
@@ -113,7 +113,7 @@ best_time_window = min(
     resultsPerTimeWindow, key=lambda x: resultsPerTimeWindow[x]["MSE"]
 )
 print(f"\nBest Time Window: {best_time_window} days\n")
-time_window_regression_model = TimeWindowMeanICPRegression(days_window=best_time_window)
+time_window_regression_model = BaselineTimeWindowMeanICPRegression(days_window=best_time_window)
 time_window_regression_model.fit(X_train, y_train)
 time_window_predictions = time_window_regression_model.predict(X_test)
 
@@ -182,7 +182,6 @@ accuracy_ridge = ridge_regression.score(X_test_lr, y_test)
 accuracy_mean_baseline = baseline_mean_regression_model.score(X_test, y_test)
 accuracy_history = history_regressor.score(X_test, y_test)
 accuracy_time_window = time_window_regression_model.score(X_test, y_test)
-
 
 # Plotting
 # Define the x values for the reference line
