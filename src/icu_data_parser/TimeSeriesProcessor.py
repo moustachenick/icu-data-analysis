@@ -1,118 +1,117 @@
 import pandas as pd
-import numpy as np
+
 
 class TimeSeriesProcessor:
-    """
-    This class processes time series data, including:
-    - Filling missing 30-minute time intervals.
-    - Imputing missing values using specified strategies.
-    - Creating lagging features.
-    - Processing entire datasets grouped by patient_id.
-    """
 
-    def fill_missing_time_intervals(self, df):
+    def process_data(self, data, lags=2, columns_to_lag=None):
         """
-        Fill missing 30-minute intervals in the dataset.
+        Main method to process the full dataset by creating lag features for each row.
+
         Args:
-            df (pd.DataFrame): Input dataframe with a timestamp column.
+            data (pd.DataFrame): The full dataset containing time series data for multiple patients.
+            lags (int): The number of lag periods to use.
+            columns_to_lag (list): List of columns for which to create lag features.
 
         Returns:
-            pd.DataFrame: Dataframe with missing 30-minute intervals filled.
+            pd.DataFrame: A new dataframe with lagged features.
         """
-        # Ensure the 'timestamp' column is in datetime format and set as the index
-        df['timestamp'] = pd.to_datetime(df['timestamp'])
-        df = df.set_index('timestamp')
+        if columns_to_lag is None:
+            columns_to_lag = ['icp', 'heart_rate', 'temperature']  # Default columns
 
-        # Create a complete range of timestamps at 30-minute intervals
-        full_range = pd.date_range(start=df.index.min(), end=df.index.max(), freq='30T')
+        # Create an empty list to store processed data for each patient
+        processed_data = []
 
-        # Reindex the dataframe to this full range, filling missing timestamps with NaN
-        df = df.reindex(full_range)
+        # Process each patient independently
+        for patient_id, patient_data in data.groupby('patient_id'):
+            # Sort the patient's data by timestamp to ensure it's in chronological order
+            patient_data = patient_data.sort_values(by='timestamp')
 
-        # Forward fill 'patient_id' to ensure newly inserted rows have the correct value
-        df['patient_id'] = df['patient_id'].ffill()
+            # Process the patient data by generating lag features
+            processed_patient_data = self.process_patient_data(patient_data, lags, columns_to_lag)
 
-        # Rename the index back to 'timestamp'
-        df.index.name = 'timestamp'
+            # Append the processed patient data to the full dataset
+            processed_data.extend(processed_patient_data)
 
-        return df
+        # Convert the processed data back to a DataFrame
+        return pd.DataFrame(processed_data)
 
-
-
-    def impute_missing_rows(self, df, method='ffill'):
+    def process_patient_data(self, patient_data, lags, columns_to_lag):
         """
-        Impute missing values in the dataframe using the specified method.
+        Process the time series data for a single patient by generating lag features.
+
         Args:
-            df (pd.DataFrame): Dataframe with missing rows (NaN) to impute.
-            method (str): Imputation method. Options are 'ffill', 'bfill', 'mean', 'median'.
+            patient_data (pd.DataFrame): DataFrame containing a single patient's data.
+            lags (int): The number of lag periods to use.
+            columns_to_lag (list): List of columns for which to create lag features.
 
         Returns:
-            pd.DataFrame: Dataframe with imputed missing values.
+            List[dict]: A list of dictionaries where each dictionary represents one row of processed data with lagged features.
         """
-        if method == 'ffill':
-            # Forward fill missing values
-            df = df.ffill()
-        elif method == 'bfill':
-            # Backward fill missing values
-            df = df.bfill()
-        elif method == 'mean':
-            # Impute with column means
-            df = df.fillna(df.mean())
-        elif method == 'median':
-            # Impute with column medians
-            df = df.fillna(df.median())
-        else:
-            raise ValueError(f"Unknown imputation method: {method}")
+        processed_patient_data = []
 
-        print(f"After imputing missing values using {method}, dataframe is:")
-        print(df)
-        return df
+        # Ensure the patient_data index is reset for each patient to avoid index issues
+        patient_data = patient_data.reset_index(drop=True)
 
-    def create_lagged_features(self, df, lags, columns):
+        # Iterate through each row in the patient's data
+        for idx, current_row in patient_data.iterrows():
+            # Get the previous rows up to the current row index (but not including it)
+            previous_rows = self.get_previous_rows(patient_data, idx, lags)
+
+            # Create lag features for the current row based on previous rows
+            lagged_row = self.create_lagged_features(current_row, previous_rows, columns_to_lag, lags)
+
+            # Append the processed row (with lag features) to the processed data list
+            processed_patient_data.append(lagged_row)
+
+        return processed_patient_data
+
+    def get_previous_rows(self, patient_data, current_index, lags):
         """
-        Create lagging features for specified columns.
+        Retrieve the previous `lags` rows for the current row, excluding the current row itself.
+
         Args:
-            df (pd.DataFrame): Input dataframe.
-            lags (int): Number of lag periods to create.
-            columns (list): List of columns to lag.
+            patient_data (pd.DataFrame): DataFrame containing a single patient's data, sorted by timestamp.
+            current_index (int): The index of the current row in the patient's data.
+            lags (int): The number of previous rows (lags) to retrieve.
 
         Returns:
-            pd.DataFrame: Dataframe with lagged features added.
+            pd.DataFrame: A DataFrame containing the previous `lags` rows, or as many rows as available.
         """
-        for lag in range(1, lags + 1):
-            for column in columns:
-                df[f'{column}_lag_{lag}'] = df[column].shift(lag)
+        # Start at the current_index - lags and stop at the current_index
+        start_index = max(0, current_index - lags)  # Ensure index doesn't go below 0
+        return patient_data.iloc[start_index:current_index]  # Slice and return the rows
 
-        print(f"After creating lagged features, dataframe is:")
-        print(df)
-        return df
 
-    def process_data(self, data, lags, columns_to_lag, imputation_method='ffill'):
-        patients = data['patient_id'].unique()
-        processed_dfs = []
 
-        for patient in patients:
-            patient_data = data[data['patient_id'] == patient].copy()
+    def create_lagged_features(self, current_row, previous_rows, columns_to_lag, lags):
+        """
+        Create lagged features for a given row based on the previous `lags` measurements.
 
-            # Fill missing time intervals
-            patient_data = self.fill_missing_time_intervals(patient_data)
+        Args:
+            current_row (pd.Series): The current row of data.
+            previous_rows (pd.DataFrame): The previous `lags` rows of data.
+            columns_to_lag (list): List of columns for which to create lag features.
+            lags (int): The number of lag periods to use.
 
-            # Impute missing values using the specified method
-            patient_data = self.impute_missing_rows(patient_data, method=imputation_method)
+        Returns:
+            dict: A dictionary representing the row with lagged features added.
+        """
+        # Initialize the row dictionary with the current row data
+        row_dict = current_row.to_dict()
 
-            # Create lagged features for each column
-            patient_data = self.create_lagged_features(patient_data, lags, columns_to_lag)
+        # For each column, create lag features
+        for col in columns_to_lag:
+            # Ensure previous rows are ordered from most recent to least recent (chronological order)
+            previous_rows = previous_rows.sort_index(ascending=False)
 
-            # Drop rows with NaN in lagged columns (i.e., the first row)
-            lagged_columns = [f"{col}_lag_{i}" for col in columns_to_lag for i in range(1, lags + 1)]
-            patient_data = patient_data.dropna(subset=lagged_columns)
+            # Iterate over the lags and assign the correct lag values
+            for lag in range(1, lags + 1):
+                if len(previous_rows) >= lag:
+                    # Get the lagged value from the correct previous row
+                    row_dict[f"{col}_lag_{lag}"] = previous_rows.iloc[lag - 1][col]
+                else:
+                    # If there aren't enough previous rows, assign NaN
+                    row_dict[f"{col}_lag_{lag}"] = None
 
-            processed_dfs.append(patient_data)
-
-        print("Processed data from all patients:")
-        print(pd.concat(processed_dfs))
-
-        # Concatenate the processed data from all patients
-        final_df = pd.concat(processed_dfs)
-        return final_df
+        return row_dict
 
