@@ -3,6 +3,8 @@ import os
 
 from matplotlib import pyplot as plt
 
+from icu_data_parser.TimeSeriesProcessor import TimeSeriesProcessor
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 import pandas as pd
 import numpy as np
@@ -17,9 +19,6 @@ from icu_data_regression_classes.BaselineHistoryRegression import (
     BaselineHistoryRegression,
 )
 from icu_data_regression_classes.RegressionModelPlotter import RegressionModelPlotter
-from icu_data_regression_classes.BaselineTimeWindowMeanICPRegression import (
-    BaselineTimeWindowMeanICPRegression,
-)
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import Lasso
 
@@ -30,6 +29,21 @@ file_path = os.path.abspath(
 data_processor = DataPreProcessor(file_path)
 
 cleaned_df = data_processor.pre_process_dataset()
+
+time_series_processor = TimeSeriesProcessor()
+
+# define the number of lags and columns to lag
+lags = 5
+columns_to_lag = ["cpp", "glucose", "haemoglobin", "icp_next", "heart_rate", "temperature", "mean_blood_pressure", "paco2", "pao2", "peep", "ph", "spo2"]
+
+# Process the data by creating lag features
+cleaned_df = time_series_processor.process_data(cleaned_df, lags=lags, columns_to_lag=columns_to_lag)
+
+print(f"\nDataset pre-processed and lag features created.")
+print(f"\nNumber of rows in the cleaned dataset: {cleaned_df.shape[0]}")
+
+# print the number of rows with NaN or missing values
+print("\nNumber of rows with NaN values: ", cleaned_df.isnull().sum().sum())
 
 # We can now use the Regression to predict the ICP values for the rest of the data.
 
@@ -77,46 +91,6 @@ history_regression.fit(X_train, y_train)
 # Make predictions with the Baseline History Regression
 history_predictions = history_regression.predict(X_test)
 
-# Time Window Mean ICP Regression Model
-
-print("\n\nTime Window Mean ICP Regression Model:\n")
-
-# Define a dictionary to store the performance results for each time window
-resultsPerTimeWindow = {}
-
-# Loop over different time windows (e.g., 1 day, 2 days, 3 days, 4 days)
-for days in [1, 2, 3, 4, 5, 6, 7]:
-    # Initialize the model with the current time window
-    model = BaselineTimeWindowMeanICPRegression(days_window=days)
-
-    # Fit the model with the training data
-    model.fit(X_train, y_train)
-
-    # Predict ICP on the test data
-    y_pred = model.predict(X_test)
-
-    # Calculate evaluation metrics (e.g., MSE, MAE)
-    mse = mean_squared_error(y_test, y_pred)
-    mae = mean_absolute_error(y_test, y_pred)
-
-    # Store the results for this time window
-    resultsPerTimeWindow[days] = {"MSE": mse, "MAE": mae}
-
-# Print the results for each time window
-for days, results in resultsPerTimeWindow.items():
-    print(
-        f"Time Window: {days} days - MSE: {results['MSE']:.2f}, MAE: {results['MAE']:.2f}"
-    )
-
-# Keep the best model based on the lowest MSE
-best_time_window = min(
-    resultsPerTimeWindow, key=lambda x: resultsPerTimeWindow[x]["MSE"]
-)
-print(f"\nBest Time Window: {best_time_window} days\n")
-time_window_regression_model = BaselineTimeWindowMeanICPRegression(days_window=best_time_window)
-time_window_regression_model.fit(X_train, y_train)
-time_window_predictions = time_window_regression_model.predict(X_test)
-
 # For the LinearRegression model, we need to drop the 'timestamp', 'patient_id', and 'date_of_birth' columns
 X_train_lr = X_train.drop(columns=["timestamp", "patient_id", "date_of_birth"])
 X_test_lr = X_test.drop(columns=["timestamp", "patient_id", "date_of_birth"])
@@ -138,8 +112,8 @@ linear_predictions = linear_regression.predict(X_test_lr)
 coefficients = pd.Series(linear_regression.coef_, index=X_cleaned.columns)
 
 # Print the coefficients and their importance
-print("Linear Regression Coefficients:")
-print(coefficients)
+print("Linear Regression Coefficients, ordered by importance:")
+print(coefficients.abs().sort_values(ascending=False))
 
 # Let's also try another model from the sklearn library, the Ridge Regression model
 
@@ -153,35 +127,30 @@ baseline_mse = mean_squared_error(y_test, baseline_predictions)
 linear_mse = mean_squared_error(y_test, linear_predictions)
 history_mse = mean_squared_error(y_test, history_predictions)
 ridge_regression_mse = mean_squared_error(y_test, ridge_regression_predictions)
-time_window_predictions_mse = mean_squared_error(y_test, time_window_predictions)
 
 # Evaluate all models
 baseline_mae = mean_absolute_error(y_test, baseline_predictions)
 linear_mae = mean_absolute_error(y_test, linear_predictions)
 history_mae = mean_absolute_error(y_test, history_predictions)
 ridge_regression_mae = mean_absolute_error(y_test, ridge_regression_predictions)
-time_window_predictions_mae = mean_absolute_error(y_test, time_window_predictions)
 
 # Evaluate all models
 baseline_rmse = root_mean_squared_error(y_test, baseline_predictions)
 linear_rmse = root_mean_squared_error(y_test, linear_predictions)
 history_rmse = root_mean_squared_error(y_test, history_predictions)
 ridge_regression_rmse = root_mean_squared_error(y_test, ridge_regression_predictions)
-time_window_predictions_rmse = root_mean_squared_error(y_test, time_window_predictions)
 
 # Calculate the residuals
 history_residuals = y_test.values - history_predictions
 advanced_residuals = y_test.values - baseline_predictions
 linear_residuals = y_test.values - linear_predictions
 ridge_residuals = y_test.values - ridge_regression_predictions
-time_window_residuals = y_test.values - time_window_predictions
 
 # get the accuracy of all models
 accuracy_linear = linear_regression.score(X_test_lr, y_test)
 accuracy_ridge = ridge_regression.score(X_test_lr, y_test)
 accuracy_mean_baseline = baseline_mean_regression_model.score(X_test, y_test)
 accuracy_history = history_regression.score(X_test, y_test)
-accuracy_time_window = time_window_regression_model.score(X_test, y_test)
 
 # Plotting
 # Define the x values for the reference line
@@ -191,7 +160,6 @@ x = np.linspace(min(y_test), max(y_test), 400)
 # Dictionary of model predictions
 predictions_dict = {
     "Linear Regression": linear_predictions,
-    f"Time Window Mean ICP Regression ({best_time_window} days)": time_window_predictions,
     "Baseline Advanced Regression": baseline_predictions,
     "Baseline History Regression": history_predictions,
     "Ridge Regression": ridge_regression_predictions,
@@ -208,7 +176,6 @@ results_df = pd.DataFrame(
         "BaselineAdvancedRegression": baseline_predictions,
         "LinearRegressionModel": linear_predictions,
         "RidgeRegression": ridge_regression_predictions,
-        f"BaselineTimeWindowMeanICPRegression ({best_time_window} days)": time_window_predictions,
     }
 )
 
@@ -250,20 +217,11 @@ ridge_cv_scores = cross_val_score(
 )
 ridge_cv_scores = -ridge_cv_scores
 
-# Perform 10-fold cross-validation for the Time Window Mean ICP Regression model
-time_window_cv_scores = cross_val_score(
-    time_window_regression_model, X, y, cv=kf, scoring="neg_mean_squared_error"
-)
-time_window_cv_scores = -time_window_cv_scores
-
 # Add the cross-validation results to the DataFrame
 cv_results_df = pd.DataFrame({"LinearRegressionModel": linear_cv_scores})
 cv_results_df["BaselineAdvancedRegression"] = advanced_cv_scores
 cv_results_df["BaselineHistoryRegression"] = history_cv_scores
 cv_results_df["RidgeRegression"] = ridge_cv_scores
-cv_results_df[f"BaselineTimeWindowMeanICPRegression ({best_time_window} days)"] = (
-    time_window_cv_scores
-)
 
 print(
     f"\n\nAccording to the cross-validation results, the model with the lowest MSE is: {cv_results_df.mean().idxmin()}\n"
@@ -276,10 +234,6 @@ plt.plot(advanced_cv_scores, label="Baseline Advanced Regression")
 plt.plot(linear_cv_scores, label="Linear Regression")
 plt.plot(history_cv_scores, label="Baseline History Regression")
 # plt.plot(ridge_cv_scores, label='Ridge Regression')
-plt.plot(
-    time_window_cv_scores,
-    label=f"Time Window Mean ICP Regression ({best_time_window} days)",
-)
 plt.xlabel("Fold", fontsize=14)
 plt.ylabel("Mean Squared Error", fontsize=14)
 plt.legend()
@@ -293,35 +247,30 @@ results = {
         "Baseline History Regression",
         "Linear Regression",
         "Ridge Regression",
-        f"Time Window Mean ICP Regression ({best_time_window} days)",
     ],
     "MSE": [
         baseline_mse,
         history_mse,
         linear_mse,
         ridge_regression_mse,
-        time_window_predictions_mse,
     ],
     "MAE": [
         baseline_mae,
         history_mae,
         linear_mae,
         ridge_regression_mae,
-        time_window_predictions_mae,
     ],
     "RMSE": [
         baseline_rmse,
         history_rmse,
         linear_rmse,
         ridge_regression_rmse,
-        time_window_predictions_rmse,
     ],
     "Accuracy": [
         f"{accuracy_mean_baseline * 100:.2f}%",
         f"{accuracy_history * 100:.2f}",
         f"{accuracy_linear * 100:.2f}%",
         f"{accuracy_ridge * 100:.2f}%",
-        f"{accuracy_time_window * 100:.2f}%",
     ],
 }
 
@@ -359,9 +308,9 @@ y_pred_test = lasso.predict(X_test_scaled)
 coefficients = pd.Series(lasso.coef_, index=X_lasso.columns)
 
 # Display coefficients
-print("\nLasso Coefficients:")
-print(coefficients)
+print("\nLasso Coefficients, ordered by importance:")
+print(coefficients.abs().sort_values(ascending=False))
 
-# Identify important features
-important_features = coefficients[coefficients != 0].index.tolist()
+# Identify important features, ordered by importance
+important_features = coefficients.abs().sort_values(ascending=False).index.tolist()
 print("Important features selected by Lasso:", important_features)

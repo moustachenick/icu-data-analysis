@@ -1,19 +1,55 @@
-import pandas as pd
+import os
 
+import pandas as pd
+from pathlib import Path
 
 class TimeSeriesProcessor:
 
     def process_data(self, data, lags=2, columns_to_lag=None):
         """
+        Process the full dataset by creating lag features for each row and handling missing values.
+        Then, forward fill missing values per patient to ensure no missing values in lagged columns.
+        Also, convert the processed data back to a DataFrame.
+        :param data: data (pd.DataFrame): The full dataset containing time series data for multiple patients.
+        :param lags: lags (int): The number of lag periods to use.
+        :param columns_to_lag: List of columns for which to create lag features.
+        :return: pd.DataFrame: A new dataframe with lagged features and missing values handled.
+        """
+        print("\nTime Series Processor initiated.")
+        print("\nSTEP 1: Processing time series data and creating lag features. This may take a while...")
+
+        processed_data_df = self.create_lagged_features_dataset(data, lags, columns_to_lag)
+
+        print("\nstep 2: Handling missing values in lagged columns")
+        cleaned_data = processed_data_df.dropna(subset=[col for col in processed_data_df.columns if 'lag' in col])
+
+        print("\nSTEP 3: Forward filling missing non-lagged values per patient")
+        # Use forward fill per patient to handle missing values in non-lagged columns
+        cleaned_data = cleaned_data.groupby('patient_id').apply(lambda group: group.fillna(method='ffill'))
+
+
+        # Save also the cleaned data to a CSV file
+        # Construct the file path
+        output_dir = Path(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'data')))
+        output_dir.mkdir(parents=True, exist_ok=True)  # Ensure the directory exists
+
+        filepath = output_dir / 'cleaned_df_lagged.csv'
+        print(f"\nTime Series Processor completed. Saving cleaned data to {filepath}\n")
+        cleaned_data_df = pd.DataFrame(cleaned_data)
+        cleaned_data_df.to_csv(filepath, index=False)
+
+        return cleaned_data_df
+
+    def create_lagged_features_dataset(self, data, lags=2, columns_to_lag=None):
+        """
         Main method to process the full dataset by creating lag features for each row.
 
-        Args:
-            data (pd.DataFrame): The full dataset containing time series data for multiple patients.
-            lags (int): The number of lag periods to use.
-            columns_to_lag (list): List of columns for which to create lag features.
+        :param data: data (pd.DataFrame): The full dataset containing time series data for multiple patients.
+        :param lags: lags (int): The number of lag periods to use.
+        :param columns_to_lag: List of columns for which to create lag features.
+        :return:
 
-        Returns:
-            pd.DataFrame: A new dataframe with lagged features.
+        @:return pd.DataFrame: A new dataframe with lagged features.
         """
         if columns_to_lag is None:
             columns_to_lag = ['icp', 'heart_rate', 'temperature']  # Default columns
@@ -32,7 +68,6 @@ class TimeSeriesProcessor:
             # Append the processed patient data to the full dataset
             processed_data.extend(processed_patient_data)
 
-        # Convert the processed data back to a DataFrame
         return pd.DataFrame(processed_data)
 
     def process_patient_data(self, patient_data, lags, columns_to_lag):
@@ -58,7 +93,7 @@ class TimeSeriesProcessor:
             previous_rows = self.get_previous_rows(patient_data, idx, lags)
 
             # Create lag features for the current row based on previous rows
-            lagged_row = self.create_lagged_features(current_row, previous_rows, columns_to_lag, lags)
+            lagged_row = self.create_lagged_features_for_row(current_row, previous_rows, columns_to_lag, lags)
 
             # Append the processed row (with lag features) to the processed data list
             processed_patient_data.append(lagged_row)
@@ -81,9 +116,7 @@ class TimeSeriesProcessor:
         start_index = max(0, current_index - lags)  # Ensure index doesn't go below 0
         return patient_data.iloc[start_index:current_index]  # Slice and return the rows
 
-
-
-    def create_lagged_features(self, current_row, previous_rows, columns_to_lag, lags):
+    def create_lagged_features_for_row(self, current_row, previous_rows, columns_to_lag, lags):
         """
         Create lagged features for a given row based on the previous `lags` measurements.
 
@@ -114,4 +147,3 @@ class TimeSeriesProcessor:
                     row_dict[f"{col}_lag_{lag}"] = None
 
         return row_dict
-

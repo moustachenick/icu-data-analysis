@@ -24,15 +24,36 @@ class TestTimeSeriesProcessor(unittest.TestCase):
 
     def test_process_data(self):
         """
+        Test the process_data method to ensure the correct output is generated.
+        """
+        # Load the input data and expected output from CSV files
+        input_data = pd.read_csv('datasets/input_data.csv', parse_dates=['timestamp'], index_col=False)
+        expected_output = pd.read_csv('datasets/expected_output_for_process_data.csv', parse_dates=['timestamp'], index_col=False)
+
+        # Process the input data and create the lag features
+        result = self.processor.process_data(input_data, lags=2, columns_to_lag=['icp', 'heart_rate', 'temperature'])
+
+        # Convert lagged columns to float64 in expected_output to match the result DataFrame
+        lagged_columns = [col for col in expected_output.columns if 'lag' in col]
+        expected_output[lagged_columns] = expected_output[lagged_columns].astype('float64')
+
+        # Reset the index for both result and expected_output to ignore any index differences
+        result.reset_index(drop=True, inplace=True)
+        expected_output.reset_index(drop=True, inplace=True)
+        # Assert that the resulting DataFrame matches the expected output
+        assert_frame_equal(result, expected_output)
+
+    def test_create_lagged_features_for_dataset(self):
+        """
         Test the entire process_data method to ensure lag features are generated correctly,
         by using input and expected output data from external CSV files.
         """
         # Load the input data and expected output from CSV files
         input_data = pd.read_csv('datasets/input_data.csv', parse_dates=['timestamp'], index_col=False)
-        expected_output = pd.read_csv('datasets/expected_output.csv', parse_dates=['timestamp'], index_col=False)
+        expected_output = pd.read_csv('datasets/expected_output_for_create_lagged_features.csv', parse_dates=['timestamp'], index_col=False)
 
         # Process the input data and create the lag features
-        result = self.processor.process_data(input_data, lags=2, columns_to_lag=['icp', 'heart_rate', 'temperature'])
+        result = self.processor.create_lagged_features_dataset(input_data, lags=2, columns_to_lag=['icp', 'heart_rate', 'temperature'])
 
         # Reset the index for both result and expected_output to ignore any index differences
         result.reset_index(drop=True, inplace=True)
@@ -87,7 +108,7 @@ class TestTimeSeriesProcessor(unittest.TestCase):
 
         assert_frame_equal(result, expected_output)
 
-    def test_create_lagged_features(self):
+    def test_create_lagged_features_for_row(self):
         """
         Test the create_lagged_features method to ensure the correct lagged features are created.
         """
@@ -119,7 +140,7 @@ class TestTimeSeriesProcessor(unittest.TestCase):
             'temperature_lag_2': 36.7
         }
 
-        result = self.processor.create_lagged_features(current_row, previous_rows, ['icp', 'heart_rate', 'temperature'],
+        result = self.processor.create_lagged_features_for_row(current_row, previous_rows, ['icp', 'heart_rate', 'temperature'],
                                                        lags=2)
 
         self.assertEqual(result, expected_output)

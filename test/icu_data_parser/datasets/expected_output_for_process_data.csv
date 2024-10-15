@@ -1,0 +1,4 @@
+patient_id,timestamp,icp,heart_rate,temperature,icp_lag_1,icp_lag_2,heart_rate_lag_1,heart_rate_lag_2,temperature_lag_1,temperature_lag_2
+1,2023-01-01 01:00:00,14,72,36.7,12,10,75,70,36.6,36.5
+1,2023-01-01 01:30:00,13,73,36.8,14,12,72,75,36.7,36.6
+1,2023-01-01 02:00:00,15,71,36.7,13,14,73,72,36.8,36.7
