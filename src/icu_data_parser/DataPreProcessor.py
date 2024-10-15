@@ -27,15 +27,14 @@ class DataPreProcessor:
         print("\nSTEP 5: Shifting ICP values\n")
         cleaned_df = self.shift_icp_values(cleaned_df)
 
-        print("\nData Preprocessing Completed. Saving to file...\n")
         # Save also the cleaned data to a CSV file
         # Construct the file path
         output_dir = Path(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'data')))
         output_dir.mkdir(parents=True, exist_ok=True)  # Ensure the directory exists
 
         filepath = output_dir / 'cleaned_df.csv'
-
-        cleaned_df.to_csv(filepath)
+        print(f"\nData Preprocessing completed. Saving cleaned data to {filepath}\n")
+        cleaned_df.to_csv(filepath, index=False)
 
         return cleaned_df
 

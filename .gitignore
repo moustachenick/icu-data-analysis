@@ -105,8 +105,7 @@ cookiecutter-pypackage-env/
 
 # Testing
 test/**/*.txt
-test/**/*.csv
-test*.csv
+!test/**/*.csv
 test*.txt
 
 # Jupyter Notebook
