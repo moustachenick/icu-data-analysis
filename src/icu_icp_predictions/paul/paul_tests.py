@@ -34,7 +34,7 @@ time_series_processor = TimeSeriesProcessor()
 
 # define the number of lags and columns to lag
 lags = 5
-columns_to_lag = ["cpp", "glucose", "haemoglobin", "icp_next", "heart_rate", "temperature", "mean_blood_pressure", "paco2", "pao2", "peep", "ph", "spo2"]
+columns_to_lag = ["cpp", "glucose", "haemoglobin", "icp", "heart_rate", "temperature", "mean_blood_pressure", "paco2", "pao2", "peep", "ph", "spo2"]
 
 # Process the data by creating lag features
 cleaned_df = time_series_processor.process_data(cleaned_df, lags=lags, columns_to_lag=columns_to_lag)
@@ -51,10 +51,10 @@ print("\nNumber of rows with NaN values: ", cleaned_df.isnull().sum().sum())
 X = cleaned_df.drop(columns=["icp", "icp_next"])  # Features
 y = cleaned_df["icp_next"]  # Target is the "next ICP" at the next valid timestamp
 
-# Let's use only the first 50% of the data, for speed (this will be removed in the final version)
+# Let's use only the first 50% of the data, for speed (TODO this will be removed in the final version)
 X_original = X
-X = X[: int(0.5 * X.shape[0])]
-y = y[: int(0.5 * y.shape[0])]
+# X = X[: int(0.5 * X.shape[0])]
+# y = y[: int(0.5 * y.shape[0])]
 
 # we need to create a train-test split of the data
 # we will use the first 80% of the data for training and the rest for testing
@@ -198,6 +198,9 @@ print("\nLinear Regression Model Cross-Validation MSE:", linear_cv_scores.mean()
 
 # Now we want to compare the cross-validation results of the Linear Regression model
 # with the Baseline Advanced Regression and the Baseline History Regression.
+
+print("\nPerforming 10-fold cross-validation for all models.")
+print("\nThis may take a few minutes...")
 
 # Perform 10-fold cross-validation for the Baseline Advanced Regression
 advanced_cv_scores = cross_val_score(
