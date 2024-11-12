@@ -195,6 +195,9 @@ print("\nLinear Regression Model Cross-Validation MSE:", linear_cv_scores.mean()
 # Now we want to compare the cross-validation results of the Linear Regression model
 # with the Baseline Advanced Regression and the Baseline History Regression.
 
+print("\nPerforming 10-fold cross-validation for all models.")
+print("\nThis may take a few minutes...")
+
 # Perform 10-fold cross-validation for the Baseline Advanced Regression
 advanced_cv_scores = cross_val_score(
     baseline_mean_regression_model, X, y, cv=kf, scoring="neg_mean_squared_error"
