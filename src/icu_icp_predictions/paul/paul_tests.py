@@ -3,7 +3,6 @@ import os
 
 from matplotlib import pyplot as plt
 
-from icu_data_parser.TimeSeriesProcessor import TimeSeriesProcessor
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 import pandas as pd
@@ -19,6 +18,7 @@ from icu_data_regression_classes.BaselineHistoryRegression import (
     BaselineHistoryRegression,
 )
 from icu_data_regression_classes.RegressionModelPlotter import RegressionModelPlotter
+from icu_data_parser.TimeSeriesProcessor import TimeSeriesProcessor
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import Lasso
 
@@ -34,7 +34,7 @@ time_series_processor = TimeSeriesProcessor()
 
 # define the number of lags and columns to lag
 lags = 5
-columns_to_lag = ["cpp", "glucose", "haemoglobin", "icp_next", "heart_rate", "temperature", "mean_blood_pressure", "paco2", "pao2", "peep", "ph", "spo2"]
+columns_to_lag = [ "icp", "temperature", "mean_blood_pressure", "cpp", "glucose", "haemoglobin", "heart_rate", "paco2","pao2", "peep", "ph", "spo2"]
 
 # Process the data by creating lag features
 cleaned_df = time_series_processor.process_data(cleaned_df, lags=lags, columns_to_lag=columns_to_lag)
@@ -48,13 +48,9 @@ print("\nNumber of rows with NaN values: ", cleaned_df.isnull().sum().sum())
 # We can now use the Regression to predict the ICP values for the rest of the data.
 
 # Prepare the features and target variable
-X = cleaned_df.drop(columns=["icp", "icp_next"])  # Features
+X = cleaned_df.drop(columns=[ "icp_next"])  # Features
 y = cleaned_df["icp_next"]  # Target is the "next ICP" at the next valid timestamp
 
-# Let's use only the first 50% of the data, for speed (this will be removed in the final version)
-X_original = X
-X = X[: int(0.5 * X.shape[0])]
-y = y[: int(0.5 * y.shape[0])]
 
 # we need to create a train-test split of the data
 # we will use the first 80% of the data for training and the rest for testing
@@ -69,7 +65,7 @@ print(
     "\tTest size:",
     X.shape[0] - train_size,
     "\tPercentage of the original dataset:",
-    round((train_size / X_original.shape[0]) * 100),
+    round((train_size / X.shape[0]) * 100),
     "%",
 )
 
@@ -314,3 +310,82 @@ print(coefficients.abs().sort_values(ascending=False))
 # Identify important features, ordered by importance
 important_features = coefficients.abs().sort_values(ascending=False).index.tolist()
 print("Important features selected by Lasso:", important_features)
+
+print("Starting RMSE table creation...")
+
+# Initialize an empty DataFrame to store RMSE results
+rmse_results_table = pd.DataFrame(columns=["Model", "Full Dataset", "Lags 1-3-5", "Drop PEEP, PH, SPO2", "Extensive Drop"])
+
+# Define different feature configurations
+feature_configs = {
+    "Full Dataset": X ,  # Use all features
+    "Lags 1-3-5": X[[col for col in X.columns if '_lag_' in col and any(x in col for x in ['_lag_1', '_lag_3', '_lag_5'])]],
+    "Drop PEEP, PH, SPO2": X.drop(columns=["peep", "ph", "spo2"]),
+    "Extensive Drop": X.drop(columns=["spo2", "ph", "peep", "glucose", "haemoglobin", 
+                                      "heart_rate", "cpp", "paco2", "pao2", "temperature", 
+                                      "temperature_lag_1", "temperature_lag_4", "temperature_lag_5", 
+                                      "mean_blood_pressure", "mean_blood_pressure_lag_1", 
+                                      "mean_blood_pressure_lag_2", "mean_blood_pressure_lag_3", 
+                                      "mean_blood_pressure_lag_5"]),
+}
+
+# Define a dictionary to hold RMSE metrics for each configuration
+rmse_metrics = {
+    "Model": ["Baseline Advanced Regression", "Baseline History Regression", "Linear Regression", "Ridge Regression"]
+}
+
+# Define train size
+train_size = 0.8  # Adjust as needed
+
+# Iterate over each feature configuration
+for config_name, X_config in feature_configs.items():
+    
+    # Prepare train-test split
+    X_train, X_test, y_train, y_test = train_test_split(X_config, y, train_size=train_size, random_state=42)
+    
+    # Initialize a list to hold RMSE values for this configuration
+    rmse_values = []
+
+    # 1. Baseline Advanced Regression
+    baseline_mean_regression_model = BaselineMeanRegression()
+    baseline_mean_regression_model.fit(X_train, y_train)
+    baseline_predictions = baseline_mean_regression_model.predict(X_test)
+    rmse_values.append(root_mean_squared_error(y_test, baseline_predictions))
+
+    # 2. Baseline History Regression
+    history_regression = BaselineHistoryRegression()
+    history_regression.fit(X_train, y_train)
+    history_predictions = history_regression.predict(X_test)
+    rmse_values.append(root_mean_squared_error(y_test, history_predictions))
+
+    # For the LinearRegression model, we need to drop the 'timestamp', 'patient_id', and 'date_of_birth' columns
+    X_train_lr = X_train.drop(columns=["timestamp", "patient_id", "date_of_birth"])
+    X_test_lr = X_test.drop(columns=["timestamp", "patient_id", "date_of_birth"])
+    X_cleaned = X.drop(columns=["timestamp", "patient_id", "date_of_birth"])
+
+    # Scale the features (especially important for features on different scales)
+    scaler = StandardScaler()
+    X_train_lr = scaler.fit_transform(X_train_lr)
+    X_test_lr = scaler.transform(X_test_lr)
+        
+    # 3. Linear Regression
+    linear_regression = LinearRegression()
+    linear_regression.fit(X_train_lr, y_train)
+    linear_predictions = linear_regression.predict(X_test_lr)
+    rmse_values.append(root_mean_squared_error(y_test, linear_predictions))
+
+    # 4. Ridge Regression
+    ridge_regression = Ridge()
+    ridge_regression.fit(X_train_lr, y_train)
+    ridge_predictions = ridge_regression.predict(X_test_lr)
+    rmse_values.append(root_mean_squared_error(y_test, ridge_predictions))
+  
+    # Add the RMSE values for this configuration to the metrics dictionary
+    rmse_metrics[config_name] = rmse_values
+
+# Converting RMSE metrics to DataFrame for display in 4x4 table format
+rmse_results_df = pd.DataFrame(rmse_metrics)
+print(rmse_results_df)
+
+
+
