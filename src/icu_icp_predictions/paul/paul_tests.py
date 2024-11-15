@@ -351,11 +351,15 @@ for config_name, X_config in feature_configs.items():
 
     # 1. Baseline Advanced Regression
     baseline_mean_regression_model = BaselineMeanRegression()
+    # TODO in the BaselineMeanRegression we use the 'timestamp' and 'patient_id' columns, which are NOT present in the X_train and X_test.
+    # TODO do we need to add them to the X_train and X_test? Do we need to use the BaselineMeanRegression model?
     baseline_mean_regression_model.fit(X_train, y_train)
     baseline_predictions = baseline_mean_regression_model.predict(X_test)
     rmse_values.append(root_mean_squared_error(y_test, baseline_predictions))
 
     # 2. Baseline History Regression
+    # TODO in the BaselineHistoryRegression we use the 'timestamp' and 'patient_id' columns, which are NOT present in the X_train and X_test.
+    # TODO do we need to add them to the X_train and X_test? Do we need to use the BaselineHistoryRegression model?
     history_regression = BaselineHistoryRegression()
     history_regression.fit(X_train, y_train)
     history_predictions = history_regression.predict(X_test)
