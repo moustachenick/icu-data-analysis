@@ -366,6 +366,7 @@ for config_name, X_config in feature_configs.items():
     rmse_values.append(root_mean_squared_error(y_test, history_predictions))
 
     # For the LinearRegression model, we need to drop the 'timestamp', 'patient_id', and 'date_of_birth' columns
+    # TODO these columns are already dropped in the feature_configs, so we can use the X_train and X_test directly
     X_train_lr = X_train.drop(columns=["timestamp", "patient_id", "date_of_birth"])
     X_test_lr = X_test.drop(columns=["timestamp", "patient_id", "date_of_birth"])
     X_cleaned = X.drop(columns=["timestamp", "patient_id", "date_of_birth"])
