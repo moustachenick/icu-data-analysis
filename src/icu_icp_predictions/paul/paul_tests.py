@@ -32,12 +32,21 @@ cleaned_df = data_processor.pre_process_dataset()
 
 time_series_processor = TimeSeriesProcessor()
 
-# define the number of lags and columns to lag
-lags = 5
-columns_to_lag = [ "icp", "temperature", "mean_blood_pressure", "cpp", "glucose", "haemoglobin", "heart_rate", "paco2","pao2", "peep", "ph", "spo2"]
+# Filepath for the cleaned lagged DataFrame CSV
+csv_filepath = r"C:\Users\Nick\Desktop\giteroo\icu-data-analysis\data\cleaned_df_lagged.csv"
 
-# Process the data by creating lag features
-cleaned_df = time_series_processor.process_data(cleaned_df, lags=lags, columns_to_lag=columns_to_lag)
+
+# Check if the CSV file already exists
+if os.path.isfile(csv_filepath):
+    print(f"{csv_filepath} already exists. Loading the data from the file.")
+    cleaned_df = pd.read_csv(csv_filepath)
+else:
+    print(f"{csv_filepath} does not exist. Processing the data.")
+    # define the number of lags and columns to lag
+    lags = 5
+    columns_to_lag = [ "icp", "temperature", "mean_blood_pressure", "cpp", "glucose", "haemoglobin", "heart_rate", "paco2","pao2", "peep", "ph", "spo2"]
+    # Process the data by creating lag features
+    cleaned_df = time_series_processor.process_data(cleaned_df, lags=lags, columns_to_lag=columns_to_lag)
 
 print(f"\nDataset pre-processed and lag features created.")
 print(f"\nNumber of rows in the cleaned dataset: {cleaned_df.shape[0]}")
@@ -55,7 +64,7 @@ y = cleaned_df["icp_next"]  # Target is the "next ICP" at the next valid timesta
 # we need to create a train-test split of the data
 # we will use the first 80% of the data for training and the rest for testing
 
-train_size = int(0.8 * X.shape[0])
+train_size = int(0.7  * X.shape[0])
 
 print(
     "\nTotal size: ",
@@ -162,7 +171,7 @@ predictions_dict = {
 }
 
 # Plot the results for all models
-RegressionModelPlotter.plot_regression_models(y_test, predictions_dict)
+#RegressionModelPlotter.plot_regression_models(y_test, predictions_dict)
 
 # Create a DataFrame with the predictions and actual values
 results_df = pd.DataFrame(
@@ -180,9 +189,11 @@ kf = KFold(n_splits=10, shuffle=True, random_state=1)
 
 # Prepare data for Linear Regression model separately
 X_lr = X.drop(columns=["timestamp", "patient_id", "date_of_birth"])
-# scale the features for the Linear Regression model
+# Scale the features for the Linear Regression model
 scaler = StandardScaler()
-X_lr = scaler.fit_transform(X_lr)
+X_lr_scaled = scaler.fit_transform(X_lr)  # Use scaled features
+X_lr = pd.DataFrame(X_lr_scaled, columns=X_lr.columns) 
+
 
 # Initialize lists to store cross-validation scores
 linear_cv_scores = cross_val_score(
@@ -227,16 +238,15 @@ print(
 )
 
 # Plot the cross-validation results (mean squared error) for all models
-
-plt.figure(figsize=(14, 8))
-plt.plot(advanced_cv_scores, label="Baseline Advanced Regression")
-plt.plot(linear_cv_scores, label="Linear Regression")
-plt.plot(history_cv_scores, label="Baseline History Regression")
+#plt.figure(figsize=(14, 8))
+#plt.plot(advanced_cv_scores, label="Baseline Advanced Regression")
+#plt.plot(linear_cv_scores, label="Linear Regression")
+#plt.plot(history_cv_scores, label="Baseline History Regression")
 # plt.plot(ridge_cv_scores, label='Ridge Regression')
-plt.xlabel("Fold", fontsize=14)
-plt.ylabel("Mean Squared Error", fontsize=14)
-plt.legend()
-plt.show()
+#plt.xlabel("Fold", fontsize=14)
+#plt.ylabel("Mean Squared Error", fontsize=14)
+#plt.legend()
+#plt.show()
 
 # Display the Mean Squared Error (MSE), Mean Absolute Error (MAE), and Root Mean Squared Error (RMSE) for all models, as a table
 
@@ -321,68 +331,47 @@ rmse_results_table = pd.DataFrame(columns=["Model", "Full Dataset", "Lags 1-3-5"
 
 # Define different feature configurations
 feature_configs = {
-    "Full Dataset": X ,  # Use all features
-    "Lags 1-3-5": X[[col for col in X.columns if '_lag_' in col and any(x in col for x in ['_lag_1', '_lag_3', '_lag_5'])]],
-    "Drop PEEP, PH, SPO2": X.drop(columns=["peep", "ph", "spo2"]),
-    "Extensive Drop": X.drop(columns=["spo2", "ph", "peep", "glucose", "haemoglobin", 
-                                      "heart_rate", "cpp", "paco2", "pao2", "temperature", 
-                                      "temperature_lag_1", "temperature_lag_4", "temperature_lag_5", 
-                                      "mean_blood_pressure", "mean_blood_pressure_lag_1", 
-                                      "mean_blood_pressure_lag_2", "mean_blood_pressure_lag_3", 
-                                      "mean_blood_pressure_lag_5"]),
+    "Full Dataset":  X_lr,  # Use all features
+    "Lags 1-3-5": X_lr[[col for col in X_lr.columns if '_lag_' in col and any(x in col for x in ['_lag_1', '_lag_3', '_lag_5'])]],
+    "Drop PEEP, PH, SPO2": X_lr.drop(columns=["peep", "ph", "spo2"]),
+    "Extensive Drop": X_lr.drop(columns=[  "spo2", "spo2_lag_1", "spo2_lag_2", "spo2_lag_3", "spo2_lag_4", "spo2_lag_5",
+        "heart_rate", "heart_rate_lag_1", "heart_rate_lag_2", "heart_rate_lag_3", "heart_rate_lag_4", "heart_rate_lag_5",
+        "paco2", "paco2_lag_1", "paco2_lag_2", "paco2_lag_3", "paco2_lag_4", "paco2_lag_5",
+        "pao2", "pao2_lag_1", "pao2_lag_2", "pao2_lag_3", "pao2_lag_4", "pao2_lag_5",
+        "temperature", "temperature_lag_1", "temperature_lag_4", "temperature_lag_5",  # Keep only lag_2 and lag_3
+        "ph", "ph_lag_1", "ph_lag_2", "ph_lag_3", "ph_lag_4", "ph_lag_5",
+        "peep", "peep_lag_1", "peep_lag_2", "peep_lag_3", "peep_lag_4", "peep_lag_5",
+        "glucose", "glucose_lag_1", "glucose_lag_2", "glucose_lag_3", "glucose_lag_4", "glucose_lag_5",
+        "haemoglobin", "haemoglobin_lag_1", "haemoglobin_lag_2", "haemoglobin_lag_3", "haemoglobin_lag_4", "haemoglobin_lag_5",
+        "cpp", "cpp_lag_1", "cpp_lag_2", "cpp_lag_3", "cpp_lag_4", "cpp_lag_5",
+        "mean_blood_pressure", "mean_blood_pressure_lag_1", "mean_blood_pressure_lag_2", 
+        "mean_blood_pressure_lag_3", "mean_blood_pressure_lag_5"]),
 }
 
 # Define a dictionary to hold RMSE metrics for each configuration
 rmse_metrics = {
-    "Model": ["Baseline Advanced Regression", "Baseline History Regression", "Linear Regression", "Ridge Regression"]
+    "Model": ["Linear Regression", "Ridge Regression"]
 }
 
 # Define train size
-train_size = 0.8  # Adjust as needed
+train_size = 0.7   # Adjust as needed
 
 # Iterate over each feature configuration
-for config_name, X_config in feature_configs.items():
+for config_name, X_lr_config in feature_configs.items():
     
     # Prepare train-test split
-    X_train, X_test, y_train, y_test = train_test_split(X_config, y, train_size=train_size, random_state=42)
+    X_train_lr, X_test_lr, y_train, y_test = train_test_split(X_lr_config, y, train_size=train_size, random_state=42)
     
     # Initialize a list to hold RMSE values for this configuration
     rmse_values = []
 
-    # 1. Baseline Advanced Regression
-    baseline_mean_regression_model = BaselineMeanRegression()
-    # TODO in the BaselineMeanRegression we use the 'timestamp' and 'patient_id' columns, which are NOT present in the X_train and X_test.
-    # TODO do we need to add them to the X_train and X_test? Do we need to use the BaselineMeanRegression model?
-    baseline_mean_regression_model.fit(X_train, y_train)
-    baseline_predictions = baseline_mean_regression_model.predict(X_test)
-    rmse_values.append(root_mean_squared_error(y_test, baseline_predictions))
-
-    # 2. Baseline History Regression
-    # TODO in the BaselineHistoryRegression we use the 'timestamp' and 'patient_id' columns, which are NOT present in the X_train and X_test.
-    # TODO do we need to add them to the X_train and X_test? Do we need to use the BaselineHistoryRegression model?
-    history_regression = BaselineHistoryRegression()
-    history_regression.fit(X_train, y_train)
-    history_predictions = history_regression.predict(X_test)
-    rmse_values.append(root_mean_squared_error(y_test, history_predictions))
-
-    # For the LinearRegression model, we need to drop the 'timestamp', 'patient_id', and 'date_of_birth' columns
-    # TODO these columns are already dropped in the feature_configs, so we can use the X_train and X_test directly
-    X_train_lr = X_train.drop(columns=["timestamp", "patient_id", "date_of_birth"])
-    X_test_lr = X_test.drop(columns=["timestamp", "patient_id", "date_of_birth"])
-    X_cleaned = X.drop(columns=["timestamp", "patient_id", "date_of_birth"])
-
-    # Scale the features (especially important for features on different scales)
-    scaler = StandardScaler()
-    X_train_lr = scaler.fit_transform(X_train_lr)
-    X_test_lr = scaler.transform(X_test_lr)
-        
-    # 3. Linear Regression
+    # 1. Linear Regression
     linear_regression = LinearRegression()
     linear_regression.fit(X_train_lr, y_train)
     linear_predictions = linear_regression.predict(X_test_lr)
     rmse_values.append(root_mean_squared_error(y_test, linear_predictions))
 
-    # 4. Ridge Regression
+    # 2. Ridge Regression
     ridge_regression = Ridge()
     ridge_regression.fit(X_train_lr, y_train)
     ridge_predictions = ridge_regression.predict(X_test_lr)
