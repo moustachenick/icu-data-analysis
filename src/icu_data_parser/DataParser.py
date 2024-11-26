@@ -2,26 +2,15 @@ import os
 import csv
 from datetime import datetime, timedelta
 
-import argparse
-import logging
-from LoggingCustomFormatter import CustomFormatter
-
-logger = logging.getLogger(__name__)
-parser = argparse.ArgumentParser()
-parser.add_argument('--directory', '-dir', help="the directory to scan for files", type=str, default="../data")
-parser.add_argument('--log', '-l', help="log level (DEBUG, WARN, ERROR)", type=str, default="DEBUG")
-parser.add_argument('--dir-relative', '-dr', help="directory path is relative", type=bool, default="True")
-
 """
-    A class used to parse ICU data files, and produce a final dataset file.
+    A class used to parse the raw ICU data files, and produce a combined file.
 """
-
 
 class DataParser:
-    def __init__(self, logger):
-        self.logger = logger
+    def __init__(self, data_dir):
+        self.data_dir = data_dir
         # final data list to store the final dataset
-        self.final_data = []
+        self.combined_data = []
 
         """
         patient data map to store the timestamp and values for each column of patient
@@ -75,15 +64,15 @@ class DataParser:
             "spo2",
             "temperature",
         ]
-        self.final_data.append(headers)
+        self.combined_data.append(headers)
         self.column_index = {header: index for index, header in enumerate(headers)}
         self.last_known_values = {}
 
     def parse(self, files, data_dir):
-        self.logger.debug(f"Found {len(files)} files to parse")
+        print(f"Found {len(files)} files to parse")
         for file in files:
             file_name = os.path.basename(file)
-            self.logger.debug(f"Parsing file {file_name} ...")
+            print(f"Parsing file {file_name} ...")
             if "episodes with high icp.txt" in file_name:
                 self.parse_episodes_with_high_icp(file)
             elif file_name.endswith(".txt"):
@@ -98,7 +87,7 @@ class DataParser:
     def parse_file(self, file, column_name):
         with open(file, "r", encoding="utf-8-sig") as f:
             for line in Helpers.non_blank_lines(f):
-                self.logger.debug(f"Processing line: {line}")
+                # print(f"Processing line: {line}")
                 patient_id, timestamp, _, value = line.split(",")
                 patient_id = patient_id.strip().replace('"', "")
                 timestamp = timestamp.strip().replace('"', "")
@@ -117,7 +106,7 @@ class DataParser:
     def parse_episodes_with_high_icp(self, file):
         with open(file, "r", encoding="utf-8-sig") as f:
             for line in Helpers.non_blank_lines(f):
-                self.logger.debug(f"Processing line: {line}")
+                # print(f"Processing line: {line}")
                 patient_id, date_of_birth, _, _, _, _, _, _ = line.split(",")
                 patient_id = patient_id.strip().replace('"', "")
                 date_of_birth = date_of_birth.strip().replace('"', "")
@@ -212,7 +201,7 @@ class DataParser:
         for patient_id, patient_data in self.patient_data_map.items():
             for timestamp, data_types in patient_data["values"].items():
                 # Create a new row for each timestamp, initialize it with -1
-                row = [-1] * len(self.final_data[0])
+                row = [-1] * len(self.combined_data[0])
                 # initialize the "peep" column with 0 instead of -1
                 row[self.column_index["peep"]] = 0
                 row[self.column_index["patient_id"]] = patient_id
@@ -225,12 +214,12 @@ class DataParser:
                 # Add the date of birth
                 row[self.column_index["date_of_birth"]] = patient_data["date_of_birth"]
                 # Add the row to the final_data list
-                self.final_data.append(row)
+                self.combined_data.append(row)
 
     def fix_missing_values(self):
         # order the final data by patient id and then timestamp
-        self.final_data = sorted(
-            self.final_data,
+        self.combined_data = sorted(
+            self.combined_data,
             key=lambda x: (
                 x[self.column_index["patient_id"]],
                 x[self.column_index["timestamp"]],
@@ -238,9 +227,9 @@ class DataParser:
         )
 
         # the header row is now last, so put it back at the top:
-        self.final_data.insert(0, self.final_data.pop())
+        self.combined_data.insert(0, self.combined_data.pop())
 
-        for i, row in enumerate(self.final_data[0:]):
+        for i, row in enumerate(self.combined_data[0:]):
             # Skip the row if it's the header row or the patient_id is missing (empty row)
             if i == 0 or row[self.column_index["patient_id"]] == "patient_id":
                 continue
@@ -270,7 +259,42 @@ class DataParser:
         file = data_dir + os.sep + file_name
         with open(file, "w", newline="") as f:
             writer = csv.writer(f)
-            writer.writerows(self.final_data)
+            writer.writerows(self.combined_data)
+
+    def run(self):
+        final_data_file = self.data_dir + os.sep + "final_data.csv"
+        # If the final data file already exists, return the path
+        if os.path.exists(final_data_file):
+            print(f"Final data file already exists at {final_data_file}")
+            return final_data_file
+
+        print(f"Scanning directory {self.data_dir}")
+        file_names_to_parse = [
+            "ICP.txt",
+            "CPP.txt",
+            "Glucose.txt",
+            "Haemoglobin.txt",
+            "Heart rate.txt",
+            "Mean blood pressure.txt",
+            "PaCO2.txt",
+            "PaO2.txt",
+            "PEEP.txt",
+            "PH.txt",
+            "Respiration Rate.txt",
+            "SpO2.txt",
+            "Temperature.txt",
+            "episodes with high icp.txt",
+        ]
+        files_to_parse = []
+
+        for file in file_names_to_parse:
+            print(f"Found file {self.data_dir + os.sep + file}")
+            if file.endswith(".txt"):
+                files_to_parse.append(self.data_dir + os.sep + file)
+        self.parse(files_to_parse, self.data_dir)
+
+        # return the final data file path
+        return final_data_file
 
 
 class Helpers:
@@ -295,52 +319,3 @@ class Helpers:
             line = line.rstrip()
             if line:
                 yield line
-
-
-def main(data_dir):
-    logger.debug(f"Scanning directory {data_dir}")
-    file_names_to_parse = [
-        "ICP.txt",
-        "CPP.txt",
-        "Glucose.txt",
-        "Haemoglobin.txt",
-        "Heart rate.txt",
-        "Mean blood pressure.txt",
-        "PaCO2.txt",
-        "PaO2.txt",
-        "PEEP.txt",
-        "PH.txt",
-        "Respiration Rate.txt",
-        "SpO2.txt",
-        "Temperature.txt",
-        "episodes with high icp.txt",
-    ]
-    files_to_parse = []
-    icu_data_parser = DataParser(logger)
-    for file in file_names_to_parse:
-        logger.debug(f"Found file {data_dir + os.sep + file}")
-        if file.endswith(".txt"):
-            files_to_parse.append(data_dir + os.sep + file)
-    icu_data_parser.parse(files_to_parse, data_dir)
-
-
-def set_up_logger(log_level):
-    # Create a handler
-    c_handler = logging.StreamHandler()
-    # Create a formatter and attach it to the handler
-    c_handler.setFormatter(CustomFormatter())
-    # link handler to logger
-    logger.addHandler(c_handler)
-    # Set logging level to the logger
-    logger.setLevel(log_level)  # <-- THIS!
-
-
-if __name__ == '__main__':
-    args = parser.parse_args()
-    set_up_logger(args.log.upper())
-    directory = args.directory
-    if directory is None:
-        raise Exception("root directory argument is required")
-    if args.dir_relative:
-        directory = os.path.join(os.path.abspath(os.path.dirname(__file__)), directory)
-    main(directory)

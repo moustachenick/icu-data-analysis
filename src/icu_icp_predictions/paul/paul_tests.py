@@ -32,8 +32,10 @@ cleaned_df = data_processor.pre_process_dataset()
 
 time_series_processor = TimeSeriesProcessor()
 
-# Filepath for the cleaned lagged DataFrame CSV
-csv_filepath = r"C:\Users\Nick\Desktop\giteroo\icu-data-analysis\data\cleaned_df_lagged.csv"
+# Filepath for the cleaned lagged DataFrame CSV (../../data/cleaned_df_lagged.csv)
+csv_filepath =  os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "..", "data", "cleaned_df_lagged.csv")
+)
 
 
 # Check if the CSV file already exists
