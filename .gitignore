@@ -104,8 +104,8 @@ cookiecutter-pypackage-env/
 *.~lock.*
 
 # Testing
-test/**/*.txt
-!test/**/*.csv
+tests/**/*.txt
+!tests/**/*.csv
 test*.txt
 
 # Jupyter Notebook
