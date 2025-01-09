@@ -27,18 +27,7 @@ class TimeSeriesProcessor:
         # Use forward fill per patient to handle missing values in non-lagged columns
         cleaned_data = cleaned_data.groupby('patient_id').apply(lambda group: group.fillna(method='ffill'))
 
-
-        # Save also the cleaned data to a CSV file
-        # Construct the file path
-        output_dir = Path(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'data')))
-        output_dir.mkdir(parents=True, exist_ok=True)  # Ensure the directory exists
-
-        filepath = output_dir / 'cleaned_df_lagged.csv'
-        print(f"\nTime Series Processor completed. Saving cleaned data to {filepath}\n")
-        cleaned_data_df = pd.DataFrame(cleaned_data)
-        cleaned_data_df.to_csv(filepath, index=False)
-
-        return cleaned_data_df
+        return pd.DataFrame(cleaned_data)
 
     def create_lagged_features_dataset(self, data, lags=2, columns_to_lag=None):
         """

@@ -4,13 +4,24 @@ import pandas as pd
 from sklearn.impute import KNNImputer
 from pathlib import Path
 
+from icu_data_parser.TimeSeriesProcessor import TimeSeriesProcessor
+
 
 class DataPreProcessor:
 
-    def __init__(self, file_path):
-        self.file_path = file_path
+    def __init__(self, raw_data_file_path):
+        self.raw_data_file_path = raw_data_file_path
 
     def pre_process_dataset(self):
+        
+        lagged_file_path = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "..", "..", "data", "cleaned_df_lagged.csv")
+        )
+
+        # if the file already exists, return the dataframe
+        if os.path.exists(lagged_file_path):
+            print(f"File {lagged_file_path} already exists. Loading the cleaned data from the file.")
+            return pd.read_csv(lagged_file_path)
 
         print("\nSTEP 1: Replacing missing values\n")
         filtered_df = self.replace_missing_values()
@@ -27,15 +38,24 @@ class DataPreProcessor:
         print("\nSTEP 5: Shifting ICP values\n")
         cleaned_df = self.shift_icp_values(cleaned_df)
 
+        print("\nSTEP 6: Creating lagged features\n")
+        cleaned_df = self.create_lagged_features(cleaned_df)
+
+        print("Preprocessing complete.")
+        print(f"Number of rows in the cleaned dataset: {cleaned_df.shape[0]}")
+        print(f"Number of rows with NaN values: {cleaned_df.isnull().sum().sum()}")
+
         # Save also the cleaned data to a CSV file
         # Construct the file path
         output_dir = Path(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'data')))
         output_dir.mkdir(parents=True, exist_ok=True)  # Ensure the directory exists
 
-        filepath = output_dir / 'cleaned_df.csv'
-        print(f"\nData Preprocessing completed. Saving cleaned data to {filepath}\n")
-        cleaned_df.to_csv(filepath, index=False)
 
+
+        print(f"\nData Preprocessing completed. Saving cleaned data to {lagged_file_path}\n")
+        # Save the lagged dataset to a CSV file
+        cleaned_df.to_csv(lagged_file_path, index=False)
+        
         return cleaned_df
 
     def print_percentages_of_rows_with_missing_values(self, dataframe):
@@ -53,10 +73,10 @@ class DataPreProcessor:
 
     def replace_missing_values(self):
         # Construct the absolute path
-        file_path = self.file_path
+        raw_data_file_path = self.raw_data_file_path
 
         # Read the data from the CSV file
-        df = pd.read_csv(file_path, engine='python')
+        df = pd.read_csv(raw_data_file_path, engine='python')
         df.head()
         # The dataset contains missing values that are represented by different strings ("--", ".", etc).
         # declare an array of strings that will be converted to NaN
@@ -216,5 +236,23 @@ class DataPreProcessor:
 
         # Drop the 'time_diff' column as it is no longer needed
         data = data.drop(columns=['time_diff'])
+
+        return data
+
+    def create_lagged_features(self, data):
+        """
+        Preprocess the dataset and create lagged features.
+        """
+
+        # Create lagged features
+        lags = 5
+        columns_to_lag = [
+            "icp", "temperature", "mean_blood_pressure", "cpp", "glucose",
+            "haemoglobin", "heart_rate", "paco2", "pao2", "peep", "ph", "spo2"
+        ]
+        time_series_processor = TimeSeriesProcessor()
+        data = time_series_processor.process_data(
+            data, lags=lags, columns_to_lag=columns_to_lag
+        )
 
         return data

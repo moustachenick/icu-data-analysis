@@ -8,86 +8,19 @@ from sklearn.model_selection import KFold, cross_val_score, train_test_split
 from sklearn.preprocessing import StandardScaler
 
 from helper.DataFramePrinter import DataFramePrinter
-from icu_data_parser.DataPreProcessor import DataPreProcessor
-from icu_data_parser.TimeSeriesProcessor import TimeSeriesProcessor
-from icu_icp_predictions.ICPPredictionsPlotter import ICPPredictionsPlotter
 
 
 class ICPPredictor:
-    def __init__(self, raw_data_file_path):
+    def __init__(self):
         """
         Initialize the ICPPrediction class.
-
-        Args:
-            raw_data_file_path (str): Path to the raw data file.
         """
-        self.raw_data_file_path = raw_data_file_path
-        self.lagged_data_file_path = os.path.abspath(
-            os.path.join(os.path.dirname(__file__), "..", "..", "data", "cleaned_df_lagged.csv")
-        )
-        self.cleaned_df_lagged = None
         self.models = {
             "Linear Regression": LinearRegression(),
             "Ridge Regression": Ridge(),
             "Lasso Regression": Lasso(alpha=0.1),
         }
         self.scaler = None  # Initialize the scaler
-
-    def preprocess_data(self):
-        """
-        Preprocess the dataset and create lagged features.
-        """
-        if os.path.isfile(self.lagged_data_file_path):
-            print(f"{self.lagged_data_file_path} already exists. Loading the data from the file.")
-            self.cleaned_df_lagged = pd.read_csv(self.lagged_data_file_path)
-        else:
-            print(f"{self.lagged_data_file_path} does not exist. Processing the data.")
-            data_processor = DataPreProcessor(self.raw_data_file_path)
-            self.cleaned_df_lagged = data_processor.pre_process_dataset()
-
-            # Create lagged features
-            lags = 5
-            columns_to_lag = [
-                "icp", "temperature", "mean_blood_pressure", "cpp", "glucose",
-                "haemoglobin", "heart_rate", "paco2", "pao2", "peep", "ph", "spo2"
-            ]
-            time_series_processor = TimeSeriesProcessor()
-            self.cleaned_df_lagged = time_series_processor.process_data(
-                self.cleaned_df_lagged, lags=lags, columns_to_lag=columns_to_lag
-            )
-            self.cleaned_df_lagged.to_csv(self.lagged_data_file_path, index=False)
-
-        print("Preprocessing complete.")
-        print(f"Number of rows in the cleaned dataset: {self.cleaned_df_lagged.shape[0]}")
-        print(f"Number of rows with NaN values: {self.cleaned_df_lagged.isnull().sum().sum()}")
-
-    def prepare_data(self, test_size=0.3):
-        """
-        Split the dataset into training and testing sets.
-
-        Args:
-            test_size (float): Fraction of data to use for testing.
-
-        Returns:
-            X_train, X_test, y_train, y_test: Split data for training and testing.
-        """
-        X = self.cleaned_df_lagged.drop(columns=["icp_next", "timestamp", "patient_id", "date_of_birth"])
-        y = self.cleaned_df_lagged["icp_next"]
-
-        train_size = int((1 - test_size) * len(X))
-        print(
-            "\nTotal size: ",
-            X.shape[0],
-            "\tTrain size:",
-            train_size,
-            "\tTest size:",
-            X.shape[0] - train_size,
-            "\tPercentage of the original dataset:",
-            round((train_size / X.shape[0]) * 100),
-            "%",
-        )
-
-        return train_test_split(X, y, train_size=train_size, random_state=42)
 
     def train_models(self, X_train, y_train):
         """
@@ -149,7 +82,6 @@ class ICPPredictor:
         else:
             print(f"\nModels evaluation completed for train size {split_size:.2f}, random_state {random_state}.")
         return results_df
-
 
     def compute_feature_importance(self, X_train, y_train):
         """
@@ -271,133 +203,3 @@ class ICPPredictor:
         cv_results_df = pd.DataFrame(cv_results)
         print("Cross-validation completed.")
         return cv_results_df
-
-    def compare_splits_and_random_states(self, split_sizes, random_states, cv_folds=10):
-        """
-        Compare model performance across different train/test split sizes and random states.
-        Perform cross-validation for each combination.
-
-        Args:
-            split_sizes (list): List of train/test split sizes (fractions for training data).
-            random_states (list): List of random_state values to try.
-            cv_folds (int): Number of cross-validation folds.
-
-        Returns:
-            combined_results_df: DataFrame summarizing performance across splits and random states.
-        """
-        if not split_sizes:
-            raise ValueError("No split sizes provided. Please pass a list of split sizes.")
-        if not random_states:
-            raise ValueError("No random states provided. Please pass a list of random states.")
-
-        combined_metrics = []
-
-        for split_size in split_sizes:
-            for random_state in random_states:
-                print(f"\nEvaluating for train size: {split_size:.2f}, test size: {1 - split_size:.2f}, random_state: {random_state}")
-
-                # Split the data
-                X_train, X_test, y_train, y_test = train_test_split(
-                    self.cleaned_df_lagged.drop(columns=["icp_next", "timestamp", "patient_id", "date_of_birth"]),
-                    self.cleaned_df_lagged["icp_next"],
-                    train_size=split_size,
-                    random_state=random_state
-                )
-
-                # Train models
-                self.train_models(X_train, y_train)
-
-                # Evaluate models
-                results_df = self.evaluate_models(X_test, y_test, split_size=split_size, random_state=random_state)
-
-                # Perform cross-validation
-                X_scaled = self.scaler.fit_transform(
-                    self.cleaned_df_lagged.drop(columns=["icp_next", "timestamp", "patient_id", "date_of_birth"])
-                )
-                y = self.cleaned_df_lagged["icp_next"]
-
-                for name, model in self.models.items():
-                    print(f"Cross-validating {name} for train size {split_size:.2f}, random_state {random_state}...")
-                    scores = cross_val_score(model, X_scaled, y, cv=cv_folds, scoring="neg_mean_squared_error")
-                    results_df.loc[results_df["Model"] == name, "Mean CV MSE"] = -scores.mean()
-
-                # Add split size and random_state information
-                results_df["Train Size"] = split_size
-                results_df["Test Size"] = 1 - split_size
-                results_df["Random State"] = random_state
-
-                combined_metrics.append(results_df)
-
-        # Combine results for all splits and random states into a single DataFrame
-        combined_results_df = pd.concat(combined_metrics, ignore_index=True)
-
-        # Display summary of results
-        DataFramePrinter.print_dataframe_tabulated(combined_results_df, "Comparison of Train/Test Splits, Random States, and Cross-Validation")
-
-        return combined_results_df
-
-    def run(self):
-        """
-        Run the entire ICP Prediction pipeline, including comparisons across splits and random states.
-        """
-        self.preprocess_data()
-
-        # Default train-test split
-        X_train, X_test, y_train, y_test = self.prepare_data()
-
-        self.train_models(X_train, y_train)
-
-        results_df = self.evaluate_models(X_test, y_test)
-        DataFramePrinter.print_dataframe_tabulated(results_df, "Model Evaluation Results with Accuracy")
-
-        # Prepare predictions for plotting
-        predictions_dict = {}
-        X_test_scaled = self.scaler.transform(X_test)
-        for name, model in self.models.items():
-            predictions_dict[name] = model.predict(X_test_scaled)
-
-        plotter = ICPPredictionsPlotter()
-
-        # Plot model results
-        plotter.plot_model_results(y_test, predictions_dict)
-
-        # Plot residuals
-        plotter.plot_residuals(y_test, predictions_dict)
-
-        # Plot prediction error
-        plotter.plot_prediction_error(y_test, predictions_dict)
-
-        # Plot performance metrics
-        plotter.plot_performance_metrics(results_df)
-
-        # Feature Importance
-        print("\nComputing feature importance...")
-        self.compute_feature_importance(X_train, y_train)
-
-        # Cross-validation
-        print("\nPerforming cross-validation...")
-        X = self.cleaned_df_lagged.drop(columns=["icp_next", "timestamp", "patient_id", "date_of_birth"])
-        y = self.cleaned_df_lagged["icp_next"]
-        cv_results_df = self.perform_cross_validation(X, y)
-        DataFramePrinter.print_dataframe_tabulated(cv_results_df, "Cross-Validation Results")
-
-        # Plot cross-validation results
-        print("\nPlotting cross-validation results...")
-        plotter.plot_cross_validation_results(cv_results_df)
-
-        # Feature Configurations
-        print("\nEvaluating with different feature configurations...")
-        self.evaluate_with_feature_configs(X, y)
-
-        # Compare different train/test splits and random states
-        print("\nComparing performance across different train/test splits and random states...")
-        split_sizes = [0.5, 0.6, 0.7, 0.8]  # Example split sizes
-        random_states = [42, 21, 0, 1]  # Example random states
-        combined_results_df = self.compare_splits_and_random_states(split_sizes, random_states)
-
-        # Print the configuration with the lowest RMSE
-        min_rmse = combined_results_df["RMSE"].min()
-        best_config = combined_results_df[combined_results_df["RMSE"] == min_rmse]
-        DataFramePrinter.print_dataframe_tabulated(best_config, "Best Configuration with Lowest RMSE")
-
-        print("\nICP Prediction pipeline completed.")

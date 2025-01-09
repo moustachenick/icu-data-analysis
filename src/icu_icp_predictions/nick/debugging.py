@@ -11,9 +11,9 @@ from icu_data_parser.DataPreProcessor import DataPreProcessor
 
 
 
+file_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'data', 'final_data.csv'))
 
-
-data_processor = DataPreProcessor()
+data_processor = DataPreProcessor(file_path)
 
 filtered_df = data_processor.replace_missing_values()
 
