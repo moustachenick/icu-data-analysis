@@ -3,7 +3,7 @@ import pandas as pd
 
 from sklearn.linear_model import LinearRegression, Ridge, Lasso
 from sklearn.metrics import mean_squared_error, mean_absolute_error
-from sklearn.model_selection import KFold, cross_val_score, train_test_split
+from sklearn.model_selection import KFold, cross_val_score
 from sklearn.preprocessing import StandardScaler
 
 from helper.DataFramePrinter import DataFramePrinter
@@ -21,7 +21,7 @@ class ICPRegressionPredictor:
         }
         self.scaler = None  # Initialize the scaler
 
-    def train_models(self, X_train, y_train):
+    def __train_models(self, X_train, y_train):
         """
         Train all models on the training data.
         This method fits the scaler on the training data and then trains all models.
@@ -38,7 +38,7 @@ class ICPRegressionPredictor:
             model.fit(X_train_scaled, y_train)
             print(f"{name} model trained successfully.")
 
-    def evaluate_models(self, X_test, y_test):
+    def __evaluate_models(self, X_test, y_test):
         """
         Evaluate all models on the testing data.
         This method requires that the models have been trained first.
@@ -77,7 +77,7 @@ class ICPRegressionPredictor:
 
         return pd.DataFrame(metrics)
 
-    def compute_feature_importance(self, X_train, y_train):
+    def __compute_feature_importance(self, X_train, y_train):
         """
         Compute and display feature importance for Linear Regression and Lasso models.
 
@@ -106,24 +106,24 @@ class ICPRegressionPredictor:
         print("\nImportant features selected by Lasso:")
         print(important_features)
 
-    def evaluate_with_feature_configs(self, X, y, train_size=0.7):
+    def __evaluate_with_feature_configs(self, X_train, X_test, y_train, y_test):
         """
         Evaluate models with different feature configurations.
 
         Args:
-            X: Full feature set.
-            y: Target variable.
-            train_size (float): Fraction of data to use for training.
+            X_train: Training features.
+            X_test: Testing features.
+            y_train: Training target.
+            y_test: Testing target.
 
         Returns:
             rmse_results_df: DataFrame of RMSE values for all models and configurations.
         """
         feature_configs = {
-            "Full Dataset": X,
-            "Lags 1-3-5": X[
-                [col for col in X.columns if '_lag_' in col and any(x in col for x in ['_lag_1', '_lag_3', '_lag_5'])]],
-            "Drop PEEP, PH, SPO2": X.drop(columns=["peep", "ph", "spo2"]),
-            "Extensive Drop": X.drop(columns=[
+            "Full Dataset": X_train.columns,
+            "Lags 1-3-5": [col for col in X_train.columns if '_lag_' in col and any(x in col for x in ['_lag_1', '_lag_3', '_lag_5'])],
+            "Drop PEEP, PH, SPO2": [col for col in X_train.columns if col not in ["peep", "ph", "spo2"]],
+            "Extensive Drop": [col for col in X_train.columns if col not in [
                 "spo2", "spo2_lag_1", "spo2_lag_2", "spo2_lag_3", "spo2_lag_4", "spo2_lag_5",
                 "heart_rate", "heart_rate_lag_1", "heart_rate_lag_2", "heart_rate_lag_3", "heart_rate_lag_4",
                 "heart_rate_lag_5",
@@ -137,22 +137,23 @@ class ICPRegressionPredictor:
                 "haemoglobin_lag_5",
                 "cpp", "cpp_lag_1", "cpp_lag_2", "cpp_lag_3", "cpp_lag_4", "cpp_lag_5",
                 "mean_blood_pressure", "mean_blood_pressure_lag_1", "mean_blood_pressure_lag_2",
-                "mean_blood_pressure_lag_3", "mean_blood_pressure_lag_5"]),
+                "mean_blood_pressure_lag_3", "mean_blood_pressure_lag_5"]]
         }
 
         rmse_metrics = {"Model": list(self.models.keys())}
 
-        for config_name, X_config in feature_configs.items():
+        for config_name, columns in feature_configs.items():
             print(f"\nEvaluating for configuration: {config_name}")
 
-            # Train-test split
-            X_train, X_test, y_train, y_test = train_test_split(X_config, y, train_size=train_size, random_state=42)
+            # Select the columns for the current configuration
+            X_train_config = X_train[columns]
+            X_test_config = X_test[columns]
 
             # Scale the features
             if self.scaler is None:
                 self.scaler = StandardScaler()
-            X_train_scaled = self.scaler.fit_transform(X_train)
-            X_test_scaled = self.scaler.transform(X_test)
+            X_train_scaled = self.scaler.fit_transform(X_train_config)
+            X_test_scaled = self.scaler.transform(X_test_config)
 
             # Collect RMSE for all models
             rmse_values = []
@@ -169,7 +170,7 @@ class ICPRegressionPredictor:
         DataFramePrinter.print_dataframe_tabulated(rmse_results_df, "Feature Configuration RMSE Results")
         return rmse_results_df
 
-    def perform_cross_validation(self, X, y, cv_folds=10):
+    def __perform_cross_validation(self, X, y, cv_folds=10):
         """
         Perform cross-validation for all models.
 
@@ -212,14 +213,16 @@ class ICPRegressionPredictor:
         Returns:
             results: Dictionary containing evaluation results, feature importance, and cross-validation results.
         """
-        self.train_models(X_train, y_train)
-        evaluation_results = self.evaluate_models(X_test, y_test)
-        self.compute_feature_importance(X_train, y_train)
-        cross_validation_results = self.perform_cross_validation(pd.concat([X_train, X_test]), pd.concat([y_train, y_test]), cv_folds)
+        self.__train_models(X_train, y_train)
+        evaluation_results = self.__evaluate_models(X_test, y_test)
+        self.__compute_feature_importance(X_train, y_train)
+        cross_validation_results = self.__perform_cross_validation(pd.concat([X_train, X_test]), pd.concat([y_train, y_test]), cv_folds)
+        feature_config_results = self.__evaluate_with_feature_configs(X_train, X_test, y_train, y_test)
 
         results = {
             "evaluation_results": evaluation_results,
-            "cross_validation_results": cross_validation_results
+            "cross_validation_results": cross_validation_results,
+            "feature_config_results": feature_config_results
         }
 
         return results
