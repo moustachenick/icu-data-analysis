@@ -24,11 +24,12 @@ class BinaryDataProcessor:
         except Exception as e:
             print(f"Error loading data: {e}")
 
-    def create_binary_data(self):
+    def create_binary_data(self, data=None):
         """
         Convert the 'icp_next' column into binary values (0 if < 22, 1 if >= 22).
-
         """
+        if data is not None:
+            self.data = data
 
         # Create a new binary column
         self.data['icp_binary'] = self.data['icp_next'].apply(lambda x: 1 if x >= 22 else 0)

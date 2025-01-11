@@ -1,4 +1,3 @@
-import os
 import numpy as np
 import pandas as pd
 
@@ -10,7 +9,7 @@ from sklearn.preprocessing import StandardScaler
 from helper.DataFramePrinter import DataFramePrinter
 
 
-class ICPPredictor:
+class ICPRegressionPredictor:
     def __init__(self):
         """
         Initialize the ICPPrediction class.
@@ -39,7 +38,7 @@ class ICPPredictor:
             model.fit(X_train_scaled, y_train)
             print(f"{name} model trained successfully.")
 
-    def evaluate_models(self, X_test, y_test, split_size=None, random_state=None):
+    def evaluate_models(self, X_test, y_test):
         """
         Evaluate all models on the testing data.
         This method requires that the models have been trained first.
@@ -76,12 +75,7 @@ class ICPPredictor:
 
             print(f"{name}: MSE = {mse:.4f}, MAE = {mae:.4f}, RMSE = {rmse:.4f}, Accuracy = {accuracy:.2f}%")
 
-        results_df = pd.DataFrame(metrics)
-        if split_size is None and random_state is None:
-            print("\nModels evaluation completed.")
-        else:
-            print(f"\nModels evaluation completed for train size {split_size:.2f}, random_state {random_state}.")
-        return results_df
+        return pd.DataFrame(metrics)
 
     def compute_feature_importance(self, X_train, y_train):
         """
@@ -203,3 +197,29 @@ class ICPPredictor:
         cv_results_df = pd.DataFrame(cv_results)
         print("Cross-validation completed.")
         return cv_results_df
+
+    def run_pipeline(self, X_train, X_test, y_train, y_test, cv_folds=10):
+        """
+        Run the full pipeline: train models, evaluate them, compute feature importance, and perform cross-validation.
+
+        Args:
+            X_train (DataFrame): Training features.
+            X_test (DataFrame): Testing features.
+            y_train (Series): Training target.
+            y_test (Series): Testing target.
+            cv_folds (int): Number of cross-validation folds.
+
+        Returns:
+            results: Dictionary containing evaluation results, feature importance, and cross-validation results.
+        """
+        self.train_models(X_train, y_train)
+        evaluation_results = self.evaluate_models(X_test, y_test)
+        self.compute_feature_importance(X_train, y_train)
+        cross_validation_results = self.perform_cross_validation(pd.concat([X_train, X_test]), pd.concat([y_train, y_test]), cv_folds)
+
+        results = {
+            "evaluation_results": evaluation_results,
+            "cross_validation_results": cross_validation_results
+        }
+
+        return results
