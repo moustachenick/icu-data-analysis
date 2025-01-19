@@ -32,8 +32,8 @@ class BinaryDataProcessor:
             self.data = data
 
         # Create a new binary column
-        self.data['icp_binary'] = self.data['icp_next'].apply(lambda x: 1 if x >= 22 else 0)
-        print("Binary column 'icp_binary' created successfully.")
+        self.data['icp_next_binary'] = self.data['icp_next'].apply(lambda x: 1 if x >= 22 else 0)
+        print("Binary column 'icp_next_binary' created successfully.")
 
 
 # --- TEST SECTION ---
@@ -52,7 +52,7 @@ if __name__ == "__main__":
     processor.create_binary_data()
 
     # Verify the result
-    print(processor.data[['icp_next', 'icp_binary']].head())
+    print(processor.data[['icp_next', 'icp_next_binary']].head())
 
     # (Optional) Save the updated DataFrame
     output_file = os.path.abspath(
