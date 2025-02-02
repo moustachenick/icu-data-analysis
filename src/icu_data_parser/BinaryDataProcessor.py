@@ -33,6 +33,8 @@ class BinaryDataProcessor:
 
         # Create a new binary column
         self.data['icp_next_binary'] = self.data['icp_next'].apply(lambda x: 1 if x >= 22 else 0)
+        # remove the original 'icp_next' column, since it is no longer needed
+        self.data.drop(columns=['icp_next'], inplace=True)
         print("Binary column 'icp_next_binary' created successfully.")
 
 

@@ -112,3 +112,5 @@ test*.txt
 .ipynb_checkpoints
 
 **/desktop.ini
+
+data.zip

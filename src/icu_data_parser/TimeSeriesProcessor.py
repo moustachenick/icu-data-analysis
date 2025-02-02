@@ -3,6 +3,7 @@ import os
 import pandas as pd
 from pathlib import Path
 
+
 class TimeSeriesProcessor:
 
     def process_data(self, data, lags=2, columns_to_lag=None):
@@ -20,14 +21,17 @@ class TimeSeriesProcessor:
 
         processed_data_df = self.create_lagged_features_dataset(data, lags, columns_to_lag)
 
-        print("\nstep 2: Handling missing values in lagged columns")
-        cleaned_data = processed_data_df.dropna(subset=[col for col in processed_data_df.columns if 'lag' in col])
+        if input("Do you want to Handle missing values and forward-fill values? (y/n): ").lower() == 'y':
+            print("\nstep 2: Handling missing values in lagged columns")
+            processed_data_df = processed_data_df.dropna(
+                subset=[col for col in processed_data_df.columns if 'lag' in col])
 
-        print("\nSTEP 3: Forward filling missing non-lagged values per patient")
-        # Use forward fill per patient to handle missing values in non-lagged columns
-        cleaned_data = cleaned_data.groupby('patient_id').apply(lambda group: group.fillna(method='ffill'))
+            print("\nSTEP 3: Forward filling missing non-lagged values per patient")
+            # Use forward fill per patient to handle missing values in non-lagged columns
+            processed_data_df = processed_data_df.groupby('patient_id').apply(
+                lambda group: group.fillna(method='ffill'))
 
-        return pd.DataFrame(cleaned_data)
+        return pd.DataFrame(processed_data_df)
 
     def create_lagged_features_dataset(self, data, lags=2, columns_to_lag=None):
         """

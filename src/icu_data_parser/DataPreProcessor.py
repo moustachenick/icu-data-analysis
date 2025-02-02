@@ -13,7 +13,6 @@ class DataPreProcessor:
         self.raw_data_file_path = raw_data_file_path
 
     def pre_process_dataset(self):
-        
         lagged_file_path = os.path.abspath(
             os.path.join(os.path.dirname(__file__), "..", "..", "data", "cleaned_df_lagged.csv")
         )
@@ -23,42 +22,53 @@ class DataPreProcessor:
             print(f"File {lagged_file_path} already exists. Loading the cleaned data from the file.")
             return pd.read_csv(lagged_file_path)
 
-        print("\nSTEP 1: Replacing missing values\n")
-        filtered_df = self.replace_missing_values()
+        # Construct the absolute path
+        raw_data_file_path = self.raw_data_file_path
+        # Read the data from the CSV file
+        df = pd.read_csv(raw_data_file_path, engine='python')
 
-        print("\nSTEP 2: Imputing missing values\n")
-        combined_df = self.known_nearest_neighbor_imputer(filtered_df)
+        print("\n~~~~STEP 1: Replacing missing values~~~~\n")
+        df = self.standardize_missing_values(df)
 
-        print("\nSTEP 3: Deleting negative ICP values\n")
-        cleaned_df = self.delete_negative_icp_values(combined_df)
+        if input("Do you want to drop columns with high missing values? (y/n): ").lower() == 'y':
+            print("\n~~~~STEP 2: Dropping columns with high missing values~~~~\n")
+            df = self.drop_columns_with_high_missing_values(df)
 
-        print("\nSTEP 4: Cleaning ICP outliers\n")
-        cleaned_df = self.clean_icp_outliers(cleaned_df)
+        if input("Do you want to impute missing values? (y/n): ").lower() == 'y':
+            print("\n~~~~STEP 3: Imputing missing values~~~~\n")
+            df = self.known_nearest_neighbor_imputer(df)
 
-        print("\nSTEP 5: Shifting ICP values\n")
-        cleaned_df = self.shift_icp_values(cleaned_df)
+        if input("Do you want to delete negative ICP values? (y/n): ").lower() == 'y':
+            print("\n~~~~STEP 4: Deleting negative ICP values~~~~\n")
+            df = self.delete_negative_icp_values(df)
 
-        print("\nSTEP 6: Creating lagged features\n")
-        cleaned_df = self.create_lagged_features(cleaned_df)
+        if input("Do you want to clean ICP outliers? (y/n): ").lower() == 'y':
+            print("\n~~~~STEP 5: Cleaning ICP outliers~~~~\n")
+            df = self.clean_icp_outliers(df)
+
+        print("\n~~~~STEP 6: Shifting ICP values~~~~\n")
+        df = self.shift_icp_values(df)
+
+        print("\n~~~~STEP 7: Creating lagged features~~~~\n")
+        df = self.create_lagged_features(df)
 
         print("Preprocessing complete.")
-        print(f"Number of rows in the cleaned dataset: {cleaned_df.shape[0]}")
-        print(f"Number of rows with NaN values: {cleaned_df.isnull().sum().sum()}")
+        print(f"Number of rows in the cleaned dataset: {df.shape[0]}")
+        print(f"Number of rows with NaN values: {df.isnull().sum().sum()}")
 
         # Save also the cleaned data to a CSV file
         # Construct the file path
         output_dir = Path(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'data')))
         output_dir.mkdir(parents=True, exist_ok=True)  # Ensure the directory exists
 
-
-
         print(f"\nData Preprocessing completed. Saving cleaned data to {lagged_file_path}\n")
         # Save the lagged dataset to a CSV file
-        cleaned_df.to_csv(lagged_file_path, index=False)
-        
-        return cleaned_df
+        df.to_csv(lagged_file_path, index=False)
 
-    def print_percentages_of_rows_with_missing_values(self, dataframe):
+        return df
+
+    @staticmethod
+    def print_percentages_of_rows_with_missing_values(dataframe):
         # Function to print the percentage of rows that have more than 1 column with missing values
         # and the percentage of rows that have exactly 1 column with missing values.
 
@@ -71,14 +81,14 @@ class DataPreProcessor:
         print('Percentage of rows that have exactly 1 column with missing value: ',
               number_of_rows_with_1_missing_value / total_num_of_rows * 100)
 
-    def replace_missing_values(self):
-        # Construct the absolute path
-        raw_data_file_path = self.raw_data_file_path
-
-        # Read the data from the CSV file
-        df = pd.read_csv(raw_data_file_path, engine='python')
-        df.head()
-        # The dataset contains missing values that are represented by different strings ("--", ".", etc).
+    def standardize_missing_values(self, df):
+        """
+        The dataset contains missing values that are represented by different strings ("--", ".", etc.).
+        We need to standardize these missing values by replacing them with NaN.
+        Standardize missing values in the dataset. Replace missing values with NaN (np.nan).
+        :param df:
+        :return:
+        """
         # declare an array of strings that will be converted to NaN
         missing_values_representations = [-1, '-1', '--', '-', '.', "/"]
         # Replace missing values with NaN
@@ -88,8 +98,16 @@ class DataPreProcessor:
         print()
         print('Total number of rows: ', total_num_of_rows)
         print()
-        print('Percentage of rows with missing values initially:',
+        print('Percentage of rows with missing values after the standardization:',
               self.print_percentages_of_rows_with_missing_values(df))
+        return df
+
+    def drop_columns_with_high_missing_values(self, df):
+        """
+        Drop columns with a high percentage of missing values.
+        :param df: DataFrame to process
+        :return: DataFrame with columns dropped
+        """
         # drop the 'respiration_rate' column as it has many missing values, and is not needed for the analysis
         df.drop(columns=['respiration_rate'], inplace=True)
         print('\nDataFrame after dropping the "respiration_rate" column:')
@@ -100,7 +118,6 @@ class DataPreProcessor:
         print()
         print('DataFrame after dropping rows with more than 1 missing value:')
         self.print_percentages_of_rows_with_missing_values(filtered_df)
-
         return filtered_df
 
     def known_nearest_neighbor_imputer(self, filtered_df):
@@ -173,7 +190,7 @@ class DataPreProcessor:
         z_scores = (cleaned_df['icp'] - cleaned_df['icp'].mean()) / cleaned_df['icp'].std()
 
         # Define a threshold for the Z-scores (how many standard deviations away from the mean)
-        # TODO: Ask Nick for the threshold
+        # We choose a threshold of 7, which is accepted for this domain
         z_score_threshold = 7
 
         # Identify the outliers based on the Z-scores

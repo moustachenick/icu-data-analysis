@@ -15,7 +15,7 @@ file_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 
 
 data_processor = DataPreProcessor(file_path)
 
-filtered_df = data_processor.replace_missing_values()
+filtered_df = data_processor.standardize_missing_values()
 
 combined_df = data_processor.known_nearest_neighbor_imputer(filtered_df)
 
