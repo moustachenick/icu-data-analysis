@@ -1,5 +1,6 @@
 import os
 import unittest
+from unittest.mock import patch
 import pandas as pd
 from pandas.testing import assert_frame_equal
 
@@ -36,7 +37,8 @@ class TestTimeSeriesProcessor(unittest.TestCase):
             'temperature': [36.5, 36.6, 36.7, 36.8, 36.7, 37.0, 37.1]
         })
 
-    def test_process_data(self):
+    @patch('builtins.input', side_effect=['y', 'y'])
+    def test_process_data(self, mock_input):
         """
         Test the process_data method to ensure the correct output is generated.
         """
@@ -61,7 +63,8 @@ class TestTimeSeriesProcessor(unittest.TestCase):
         # Assert that the resulting DataFrame matches the expected output
         assert_frame_equal(result, expected_output)
 
-    def test_create_lagged_features_for_dataset(self):
+    @patch('builtins.input', side_effect=['y', 'y'])
+    def test_create_lagged_features_for_dataset(self, mock_input):
         """
         Test the entire process_data method to ensure lag features are generated correctly,
         by using input and expected output data from external CSV files.
@@ -83,7 +86,8 @@ class TestTimeSeriesProcessor(unittest.TestCase):
         # Assert that the resulting DataFrame matches the expected output
         assert_frame_equal(result, expected_output)
 
-    def test_process_patient_data(self):
+    @patch('builtins.input', side_effect=['y', 'y'])
+    def test_process_patient_data(self, mock_input):
         """
         Test processing patient data and creating lag features for a single patient.
         """

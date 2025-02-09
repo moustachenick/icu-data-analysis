@@ -40,9 +40,7 @@ class TimeSeriesProcessor:
         :param data: data (pd.DataFrame): The full dataset containing time series data for multiple patients.
         :param lags: lags (int): The number of lag periods to use.
         :param columns_to_lag: List of columns for which to create lag features.
-        :return:
-
-        @:return pd.DataFrame: A new dataframe with lagged features.
+        :return: pd.DataFrame: A new dataframe with lagged features.
         """
         if columns_to_lag is None:
             columns_to_lag = ['icp', 'heart_rate', 'temperature']  # Default columns
