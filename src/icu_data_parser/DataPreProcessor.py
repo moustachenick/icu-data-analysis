@@ -262,14 +262,16 @@ class DataPreProcessor:
         """
 
         # Create lagged features
-        lags = 5
+        hours = 3  # Number of hours to use for creating lag features
         columns_to_lag = [
             "icp", "temperature", "mean_blood_pressure", "cpp", "glucose",
             "haemoglobin", "heart_rate", "paco2", "pao2", "peep", "ph", "spo2"
         ]
         time_series_processor = TimeSeriesProcessor()
         data = time_series_processor.process_data(
-            data, lags=lags, columns_to_lag=columns_to_lag
+            data, hours=hours, columns_to_lag=columns_to_lag
         )
+
+        print(f"\nColumns after creating lagged features: {data.columns}")
 
         return data

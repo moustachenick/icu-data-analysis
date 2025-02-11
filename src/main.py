@@ -95,7 +95,7 @@ def main(mode):
             DataFramePrinter.print_dataframe_tabulated(results["evaluation_results"], "Regression Predictions Results")
             DataFramePrinter.print_dataframe_tabulated(results["cross_validation_results"], "Cross-Validation Results")
 
-    print("\nICP Prediction pipeline completed.")
+    print("\nICP Prediction pipeline completed. ✅")
 
 
 if __name__ == "__main__":

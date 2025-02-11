@@ -45,10 +45,10 @@ if os.path.isfile(csv_filepath):
 else:
     print(f"{csv_filepath} does not exist. Processing the data.")
     # define the number of lags and columns to lag
-    lags = 5
+    hours = 2
     columns_to_lag = [ "icp", "temperature", "mean_blood_pressure", "cpp", "glucose", "haemoglobin", "heart_rate", "paco2","pao2", "peep", "ph", "spo2"]
     # Process the data by creating lag features
-    cleaned_df = time_series_processor.process_data(cleaned_df, lags=lags, columns_to_lag=columns_to_lag)
+    cleaned_df = time_series_processor.process_data(cleaned_df, hours=hours, columns_to_lag=columns_to_lag)
 
 print(f"\nDataset pre-processed and lag features created.")
 print(f"\nNumber of rows in the cleaned dataset: {cleaned_df.shape[0]}")

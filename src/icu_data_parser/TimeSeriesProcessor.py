@@ -1,46 +1,67 @@
-import os
-
 import pandas as pd
-from pathlib import Path
-
 
 class TimeSeriesProcessor:
 
-    def process_data(self, data, lags=2, columns_to_lag=None):
+    def process_data(self, data, hours=2, columns_to_lag=None):
         """
         Process the full dataset by creating lag features for each row and handling missing values.
-        Then, forward fill missing values per patient to ensure no missing values in lagged columns.
-        Also, convert the processed data back to a DataFrame.
+        This method creates lag features for each row based on the previous measurements within the specified number of hours.
+        Then, forward fill missing values per patient to ensure no missing values in non-lagged columns.
         :param data: data (pd.DataFrame): The full dataset containing time series data for multiple patients.
-        :param lags: lags (int): The number of lag periods to use.
+        :param hours: hours (float): The number of hours to use for creating lag features.
         :param columns_to_lag: List of columns for which to create lag features.
         :return: pd.DataFrame: A new dataframe with lagged features and missing values handled.
         """
         print("\nTime Series Processor initiated.")
-        print("\nSTEP 1: Processing time series data and creating lag features. This may take a while...")
 
-        processed_data_df = self.create_lagged_features_dataset(data, lags, columns_to_lag)
+        # if the data is empty, return an empty DataFrame
+        if data.empty:
+            print("Warning: Input DataFrame is empty. Returning the data as is.")
+            return pd.DataFrame(data)
 
-        if input("Do you want to Handle missing values and forward-fill values? (y/n): ").lower() == 'y':
-            print("\nstep 2: Handling missing values in lagged columns")
+        print("\nSTEP 1: Processing time series data and creating lag features. This may take a while...☕")
+
+        # give only the 10% of the data (to speed up the process)
+        # data = data.sample(frac=0.1, random_state=42)
+
+        print(f"\nColumns of data: {data.columns}")
+
+        processed_data_df = self.create_lagged_features_dataset(data, hours, columns_to_lag)
+
+        if input("Do you want to forward-fill non-lagged values? (y/n): ").lower() == 'y':
+            print("\nSTEP 2: Forward filling missing non-lagged values per patient")
+            # Identify non-lagged columns
+            non_lagged_columns = [col for col in processed_data_df.columns if 'lag' not in col]
+
+            if 'patient_id' not in processed_data_df.columns:
+                raise KeyError("'patient_id' column is missing before groupby operation.")
+
+            # Use forward fill per patient to handle missing values in non-lagged columns
+            if processed_data_df.empty:
+                print("Warning: Processed DataFrame is empty. Skipping forward fill.")
+            else:
+                # Forward fill only the non-lagged columns
+                processed_data_df[non_lagged_columns] = (
+                    processed_data_df.groupby('patient_id', group_keys=False)[non_lagged_columns]
+                    .transform('ffill')
+                    .infer_objects()  # Ensures correct data types
+                )
+
+            print("\nSTEP 3: Dropping rows with missing values in lagged columns")
             processed_data_df = processed_data_df.dropna(
                 subset=[col for col in processed_data_df.columns if 'lag' in col])
 
-            print("\nSTEP 3: Forward filling missing non-lagged values per patient")
-            # Use forward fill per patient to handle missing values in non-lagged columns
-            processed_data_df = processed_data_df.groupby('patient_id').apply(
-                lambda group: group.fillna(method='ffill'))
-
         return pd.DataFrame(processed_data_df)
 
-    def create_lagged_features_dataset(self, data, lags=2, columns_to_lag=None):
+    def create_lagged_features_dataset(self, data, hours=2, columns_to_lag=None):
         """
         Main method to process the full dataset by creating lag features for each row.
+        This method processes each patient's data independently and then concatenates the results.
 
         :param data: data (pd.DataFrame): The full dataset containing time series data for multiple patients.
-        :param lags: lags (int): The number of lag periods to use.
+        :param hours: hours (float): The number of hours to use for creating lag features.
         :param columns_to_lag: List of columns for which to create lag features.
-        :return: pd.DataFrame: A new dataframe with lagged features.
+        :return: pd.DataFrame: A new dataframe with lagged features as additional columns.
         """
         if columns_to_lag is None:
             columns_to_lag = ['icp', 'heart_rate', 'temperature']  # Default columns
@@ -49,25 +70,26 @@ class TimeSeriesProcessor:
         processed_data = []
 
         # Process each patient independently
-        for patient_id, patient_data in data.groupby('patient_id'):
+        for patient_id, patient_data in data.groupby('patient_id', group_keys=False):
             # Sort the patient's data by timestamp to ensure it's in chronological order
             patient_data = patient_data.sort_values(by='timestamp')
 
             # Process the patient data by generating lag features
-            processed_patient_data = self.process_patient_data(patient_data, lags, columns_to_lag)
+            processed_patient_data = self.process_patient_data(patient_data, hours, columns_to_lag)
 
             # Append the processed patient data to the full dataset
             processed_data.extend(processed_patient_data)
-
+        
         return pd.DataFrame(processed_data)
 
-    def process_patient_data(self, patient_data, lags, columns_to_lag):
+    def process_patient_data(self, patient_data, hours, columns_to_lag):
         """
         Process the time series data for a single patient by generating lag features.
+        This method creates lag features for each row based on the previous measurements within the specified number of hours.
 
         Args:
             patient_data (pd.DataFrame): DataFrame containing a single patient's data.
-            lags (int): The number of lag periods to use.
+            hours (float): The number of hours to use for creating lag features.
             columns_to_lag (list): List of columns for which to create lag features.
 
         Returns:
@@ -81,41 +103,50 @@ class TimeSeriesProcessor:
         # Iterate through each row in the patient's data
         for idx, current_row in patient_data.iterrows():
             # Get the previous rows up to the current row index (but not including it)
-            previous_rows = self.get_previous_rows(patient_data, idx, lags)
+            previous_rows = self.get_previous_rows(patient_data, idx, hours)
 
             # Create lag features for the current row based on previous rows
-            lagged_row = self.create_lagged_features_for_row(current_row, previous_rows, columns_to_lag, lags)
+            lagged_row = self.create_lagged_features_for_row(current_row, previous_rows, columns_to_lag, hours)
 
             # Append the processed row (with lag features) to the processed data list
             processed_patient_data.append(lagged_row)
 
         return processed_patient_data
 
-    def get_previous_rows(self, patient_data, current_index, lags):
+    def get_previous_rows(self, patient_data, current_index, hours):
         """
-        Retrieve the previous `lags` rows for the current row, excluding the current row itself.
+        Retrieve the previous rows within the specified number of hours for the current row, excluding the current row itself.
 
         Args:
             patient_data (pd.DataFrame): DataFrame containing a single patient's data, sorted by timestamp.
             current_index (int): The index of the current row in the patient's data.
-            lags (int): The number of previous rows (lags) to retrieve.
+            hours (float): The number of hours to look back for previous rows.
 
         Returns:
-            pd.DataFrame: A DataFrame containing the previous `lags` rows, or as many rows as available.
+            pd.DataFrame: A DataFrame containing the previous rows within the specified number of hours.
         """
-        # Start at the current_index - lags and stop at the current_index
-        start_index = max(0, current_index - lags)  # Ensure index doesn't go below 0
-        return patient_data.iloc[start_index:current_index]  # Slice and return the rows
+        # Get the timestamp of the current row
+        current_time = patient_data.iloc[current_index]['timestamp']
 
-    def create_lagged_features_for_row(self, current_row, previous_rows, columns_to_lag, lags):
+        # Define the exact start time for retrieving past rows
+        start_time = current_time - pd.Timedelta(hours=hours)
+
+        # Retrieve all previous rows that fall within the given time window
+        previous_rows = patient_data[
+            (patient_data['timestamp'] >= start_time) & (patient_data['timestamp'] < current_time)
+            ]
+
+        return previous_rows
+
+    def create_lagged_features_for_row(self, current_row, previous_rows, columns_to_lag, hours):
         """
-        Create lagged features for a given row based on the previous `lags` measurements.
+        Create lagged features for a given row based on the previous measurements within the specified number of hours.
 
         Args:
             current_row (pd.Series): The current row of data.
-            previous_rows (pd.DataFrame): The previous `lags` rows of data.
+            previous_rows (pd.DataFrame): The previous rows of data within the specified number of hours.
             columns_to_lag (list): List of columns for which to create lag features.
-            lags (int): The number of lag periods to use.
+            hours (float): The number of hours to use for creating lag features.
 
         Returns:
             dict: A dictionary representing the row with lagged features added.
@@ -123,18 +154,20 @@ class TimeSeriesProcessor:
         # Initialize the row dictionary with the current row data
         row_dict = current_row.to_dict()
 
+        # Ensure previous rows are ordered from most recent to the oldest
+        previous_rows = previous_rows.sort_index(ascending=False)
+
+        # Determine the maximum number of lags based on available data (at most `hours`, but can be fewer)
+        # If there are fewer previous rows than `hours`, use the number of available previous rows
+        max_lag = min(len(previous_rows), int(hours))
+
         # For each column, create lag features
         for col in columns_to_lag:
-            # Ensure previous rows are ordered from most recent to least recent (chronological order)
-            previous_rows = previous_rows.sort_index(ascending=False)
+            for lag in range(1, max_lag + 1):  # Only iterate up to available past rows
+                row_dict[f"{col}_lag_{lag}"] = getattr(previous_rows.iloc[lag - 1], col)
 
-            # Iterate over the lags and assign the correct lag values
-            for lag in range(1, lags + 1):
-                if len(previous_rows) >= lag:
-                    # Get the lagged value from the correct previous row
-                    row_dict[f"{col}_lag_{lag}"] = previous_rows.iloc[lag - 1][col]
-                else:
-                    # If there aren't enough previous rows, assign NaN
-                    row_dict[f"{col}_lag_{lag}"] = None
+            # If fewer than `hours` lags are available, fill the rest with NaN
+            for lag in range(max_lag + 1, int(hours) + 1):
+                row_dict[f"{col}_lag_{lag}"] = None
 
         return row_dict
