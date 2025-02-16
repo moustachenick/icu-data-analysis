@@ -170,7 +170,10 @@ class TimeSeriesProcessor:
 
         # Determine the maximum number of lags based on available data (at most `hours`, but can be fewer)
         # If there are fewer previous rows than `hours`, use the number of available previous rows
-        max_lag = min(len(previous_rows), int(hours))
+        if len(previous_rows) < int(hours):
+            max_lag = len(previous_rows)
+        else:
+            max_lag = int(hours)
 
         # For each column, create lag features
         for col in columns_to_lag:
