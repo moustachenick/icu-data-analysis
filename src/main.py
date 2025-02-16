@@ -49,6 +49,8 @@ def main(mode):
     data_parser = DataParser(data_dir_path)
     raw_data_file_path = data_parser.run()
 
+    print_statistics_about_the_data(raw_data_file_path)
+
     # Initialize the DataPreProcessor class and run the preprocess pipeline
     print("Running the Data Preprocessing pipeline...\n")
     data_pre_processor = DataPreProcessor(raw_data_file_path)
@@ -96,6 +98,60 @@ def main(mode):
             DataFramePrinter.print_dataframe_tabulated(results["cross_validation_results"], "Cross-Validation Results")
 
     print("\nICP Prediction pipeline completed. ✅")
+
+
+def print_statistics_about_the_data(raw_data_file_path):
+    """
+    Print statistics about the raw data.
+    Args:
+        raw_data_file_path (str): Path to the raw data file.
+    """
+    raw_data = pd.read_csv(raw_data_file_path)
+    print("\nStatistics about the raw data:\n")
+    print(raw_data.info())
+    print("\nDescriptive statistics of the raw data:\n")
+    print(raw_data.describe())
+    print("\nFirst 5 rows of the raw data:\n")
+    print(raw_data.head())
+
+    df = pd.read_csv(raw_data_file_path)
+
+    # Total number of rows
+    total_rows = len(df)
+    print(f"Total number of rows: {total_rows}")
+
+    # Number of unique patients
+    unique_patients = df['patient_id'].nunique()
+    print(f"Number of unique patients: {unique_patients}")
+
+    # Number of rows per patient
+    rows_per_patient = df['patient_id'].value_counts()
+    print("\nNumber of rows per patient:")
+    print(rows_per_patient)
+
+    print(f"Number of patients with 2 rows or less: {sum(rows_per_patient <= 2)}")
+
+    # Convert the timestamp column to datetime format
+    df['timestamp'] = pd.to_datetime(df['timestamp'])
+
+    # Sort the DataFrame by patient_id and timestamp
+    df = df.sort_values(by=['patient_id', 'timestamp'])
+
+    # Calculate the time difference between consecutive timestamps for each patient
+    df['time_diff'] = df.groupby('patient_id')['timestamp'].diff()
+
+    # Define the 30-minute interval
+    thirty_minutes = pd.Timedelta(minutes=30)
+
+    # Check for rows that do not follow the 30-minute interval within each patient group
+    non_30_minute_intervals = df['time_diff'] != thirty_minutes
+
+    # Calculate the percentage of rows that do not follow the 30-minute interval
+    percentage_non_30_minute_intervals = non_30_minute_intervals.mean() * 100
+
+    # Print the statistics
+    print(
+        f"Percentage of the dataset that does not have 30-minute interval timestamps: {percentage_non_30_minute_intervals:.2f}%")
 
 
 if __name__ == "__main__":

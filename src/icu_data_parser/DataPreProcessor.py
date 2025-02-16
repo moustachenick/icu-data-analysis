@@ -27,29 +27,36 @@ class DataPreProcessor:
         # Read the data from the CSV file
         df = pd.read_csv(raw_data_file_path, engine='python')
 
-        print("\n~~~~ STEP 1: Standardizing missing values (converting 0 to Nan, etc) ~~~~\n")
+        df = self.transform_all_columns_to_float(df)
+
+        print("\n~~~~ STEP 1: Deleting rows with negative ICP values ~~~~\n")
+        df = self.delete_negative_icp_values(df)
+
+        print("\n~~~~ STEP 2: Deleting patients with 2 rows or less ~~~~\n")
+        # Delete patients with 2 rows or less
+        df = df.groupby('patient_id').filter(lambda x: len(x) > 2)
+
+        print("\n~~~~ STEP 3: Standardizing missing values (converting 0 to Nan, etc) ~~~~\n")
         df = self.standardize_missing_values(df)
 
-        if input("Do you want to drop columns with high missing values? (y/n): ").lower() == 'y':
-            print("\n~~~~ STEP 2: Dropping columns with high missing values ~~~~\n")
+        if input("Do you want to drop columns with more than 1 missing values? (y/n): ").lower() == 'y':
+            print("\n~~~~ STEP 4: Dropping columns with high missing values ~~~~\n")
             df = self.drop_columns_with_high_missing_values(df)
+            print(f"Number of rows in the dataset after the dropping: {df.shape[0]}")
 
-        if input("Do you want to impute missing values? (y/n): ").lower() == 'y':
-            print("\n~~~~ STEP 3: Imputing missing values ~~~~\n")
-            df = self.known_nearest_neighbor_imputer(df)
-
-        if input("Do you want to delete negative ICP values? (y/n): ").lower() == 'y':
-            print("\n~~~~ STEP 4: Deleting negative ICP values ~~~~\n")
-            df = self.delete_negative_icp_values(df)
-
-        if input("Do you want to clean ICP outliers? (y/n): ").lower() == 'y':
+        if input("Do you want to delete rows that have ICP outliers? (y/n): ").lower() == 'y':
             print("\n~~~~ STEP 5: Cleaning ICP outliers ~~~~\n")
             df = self.clean_icp_outliers(df)
+            print(f"Number of rows in the dataset after the cleaning: {df.shape[0]}")
 
-        print("\n~~~~ STEP 6: Shifting ICP values ~~~~\n")
+        if input("Do you want to impute missing values? (y/n): ").lower() == 'y':
+            print("\n~~~~ STEP 6: Imputing missing values ~~~~\n")
+            df = self.known_nearest_neighbor_imputer(df)
+
+        print("\n~~~~ STEP 7: Shifting ICP values ~~~~\n")
         df = self.shift_icp_values(df)
 
-        print("\n~~~~ STEP 7: Creating lagged features ~~~~\n")
+        print("\n~~~~ STEP 8: Creating lagged features ~~~~\n")
         df = self.create_lagged_features(df)
 
         print("Preprocessing complete.")
@@ -67,6 +74,15 @@ class DataPreProcessor:
 
         return df
 
+    def transform_all_columns_to_float(self, df):
+        # Convert all columns to float, except for 'patient_id', 'date_of_birth', and 'timestamp'
+        for col in df.columns:
+            if col not in ['patient_id', 'date_of_birth', 'timestamp']:
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+        print("\nStatistics about the raw data after the transformation:\n")
+        print(df.info())
+        return df
+
     @staticmethod
     def print_percentages_of_rows_with_missing_values(dataframe):
         # Function to print the percentage of rows that have more than 1 column with missing values
@@ -75,11 +91,11 @@ class DataPreProcessor:
         total_num_of_rows = dataframe.shape[0]
         number_of_rows_with_more_than_1_missing_value = dataframe[dataframe.isna().sum(axis=1) > 1].shape[0]
         print('Percentage of rows that have more than 1 column with missing values: ',
-              number_of_rows_with_more_than_1_missing_value / total_num_of_rows * 100)
+              round(number_of_rows_with_more_than_1_missing_value / total_num_of_rows * 100, 3), '%')
 
         number_of_rows_with_1_missing_value = dataframe[dataframe.isna().sum(axis=1) == 1].shape[0]
         print('Percentage of rows that have exactly 1 column with missing value: ',
-              number_of_rows_with_1_missing_value / total_num_of_rows * 100)
+              round(number_of_rows_with_1_missing_value / total_num_of_rows * 100, 3), '%')
 
     def standardize_missing_values(self, df):
         """
@@ -112,7 +128,7 @@ class DataPreProcessor:
         df.drop(columns=['respiration_rate'], inplace=True)
         print('\nDataFrame after dropping the "respiration_rate" column:')
         self.print_percentages_of_rows_with_missing_values(df)
-        # Let's drop the rows with more than 1 missing value, since we cannot impute them.
+        # Let's drop the rows with more than 1 columns with missing value
         missing_count_per_row = df.isnull().sum(axis=1)
         filtered_df = df[missing_count_per_row <= 1]
         print()

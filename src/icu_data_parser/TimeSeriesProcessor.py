@@ -20,7 +20,7 @@ class TimeSeriesProcessor:
             print("Warning: Input DataFrame is empty. Returning the data as is.")
             return pd.DataFrame(data)
 
-        print("\nSTEP 1: Processing time series data and creating lag features. This may take a while...☕")
+        print("\nSTEP 1: Processing time series data and creating lag features. This may take a while... ☕")
 
         # give only the 10% of the data (to speed up the process)
         # data = data.sample(frac=0.1, random_state=42)
