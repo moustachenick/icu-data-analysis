@@ -1,5 +1,6 @@
 import pandas as pd
 
+
 class TimeSeriesProcessor:
 
     def process_data(self, data, hours=2, columns_to_lag=None):
@@ -79,7 +80,7 @@ class TimeSeriesProcessor:
 
             # Append the processed patient data to the full dataset
             processed_data.extend(processed_patient_data)
-        
+
         return pd.DataFrame(processed_data)
 
     def process_patient_data(self, patient_data, hours, columns_to_lag):
@@ -150,6 +151,16 @@ class TimeSeriesProcessor:
 
         Returns:
             dict: A dictionary representing the row with lagged features added.
+
+        Logic:
+        1. Initialize a dictionary with the current row's data.
+        2. Sort the previous rows in descending order of their index to ensure the most recent rows come first.
+        3. Determine the maximum number of lags to create, which is the minimum of the number of available previous rows
+        and the specified number of hours.
+        4. For each column in `columns_to_lag`:
+            a. Create lag features for the current row by iterating through the previous rows up to the `max_lag` value.
+            b. If fewer previous rows are available than the specified number of hours, fill the remaining lag features with None.
+        5. Return the dictionary containing the current row's data along with the newly created lagged features.
         """
         # Initialize the row dictionary with the current row data
         row_dict = current_row.to_dict()
@@ -163,10 +174,12 @@ class TimeSeriesProcessor:
 
         # For each column, create lag features
         for col in columns_to_lag:
-            for lag in range(1, max_lag + 1):  # Only iterate up to available past rows
-                row_dict[f"{col}_lag_{lag}"] = getattr(previous_rows.iloc[lag - 1], col)
+            # Iterate through the previous rows up to the `max_lag` value
+            for lag in range(1, max_lag + 1):
+                # Add a new column for each lag value, e.g., 'icp_lag_1', 'icp_lag_2', etc.
+                row_dict[f"{col}_lag_{lag}"] = previous_rows.iloc[lag - 1][col]
 
-            # If fewer than `hours` lags are available, fill the rest with NaN
+            # If fewer than `hours` lags are available, fill the rest with None
             for lag in range(max_lag + 1, int(hours) + 1):
                 row_dict[f"{col}_lag_{lag}"] = None
 

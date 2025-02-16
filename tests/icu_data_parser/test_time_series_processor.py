@@ -2,7 +2,7 @@ import os
 import unittest
 from unittest.mock import patch
 import pandas as pd
-from pandas.testing import assert_frame_equal
+from pandas.testing import assert_frame_equal, assert_series_equal
 
 # Adjust the Python path to include the src directory
 import sys
@@ -222,6 +222,104 @@ class TestTimeSeriesProcessor(unittest.TestCase):
 
             # Assert that the resulting DataFrame matches the expected output
             assert_frame_equal(result, expected_output, check_index_type=False)
+
+    def test_create_lagged_features_for_row(self):
+        # Define the current row
+        current_row = pd.Series({
+            'patient_id': 1,
+            'timestamp': pd.Timestamp('2023-01-01 04:00:00'),
+            'icp': 14,
+            'heart_rate': 84,
+            'temperature': 36.9
+        })
+
+        # Define the previous rows
+        previous_rows = pd.DataFrame({
+            'patient_id': [1, 1, 1, 1],
+            'timestamp': pd.to_datetime([
+                '2023-01-01 00:00:00',
+                '2023-01-01 01:00:00',
+                '2023-01-01 02:00:00',
+                '2023-01-01 03:00:00'
+            ]),
+            'icp': [10, 12, 15, 14],
+            'heart_rate': [80, 82, 85, 87],
+            'temperature': [36.5, 36.6, 36.7, 36.8]
+        })
+
+        # Expected output
+        expected_output = pd.Series({
+            'patient_id': 1,
+            'timestamp': pd.Timestamp('2023-01-01 04:00:00'),
+            'icp': 14,
+            'heart_rate': 84,
+            'temperature': 36.9,
+            'icp_lag_1': 14,
+            'icp_lag_2': 15,
+            'heart_rate_lag_1': 87,
+            'heart_rate_lag_2': 85,
+            'temperature_lag_1': 36.8,
+            'temperature_lag_2': 36.7
+        })
+
+        # Create lagged features
+        result = self.processor.create_lagged_features_for_row(current_row, previous_rows, ['icp', 'heart_rate', 'temperature'], hours=2)
+
+        # Convert result to Series for comparison
+        result_series = pd.Series(result)
+
+        # Assert that the resulting Series matches the expected output
+        assert_series_equal(result_series, expected_output)
+
+    def test_create_lagged_features_for_row_mixed_intervals(self):
+        # Define the current row (the one to create lag features for)
+        current_row = pd.Series({
+            'patient_id': 1,
+            'timestamp': pd.Timestamp('2023-01-01 04:00:00'),
+            'icp': 14,
+            'heart_rate': 84,
+            'temperature': 36.9
+        })
+
+        # Define the previous rows with mixed intervals (1-hour and 30-minutes)
+        previous_rows = pd.DataFrame({
+            'patient_id': [1, 1, 1, 1, 1, 1],
+            'timestamp': pd.to_datetime([
+                '2023-01-01 00:00:00',
+                '2023-01-01 01:00:00',
+                '2023-01-01 01:30:00',
+                '2023-01-01 02:00:00',
+                '2023-01-01 03:00:00',
+                '2023-01-01 03:30:00'
+            ]),
+            'icp': [10, 12, 14, 15, 13, 16],
+            'heart_rate': [80, 82, 83, 85, 87, 88],
+            'temperature': [36.5, 36.6, 36.55, 36.7, 36.8, 36.75]
+        })
+
+        # Expected output
+        expected_output = pd.Series({
+            'patient_id': 1,
+            'timestamp': pd.Timestamp('2023-01-01 04:00:00'),
+            'icp': 14,
+            'heart_rate': 84,
+            'temperature': 36.9,
+            'icp_lag_1': 16,
+            'icp_lag_2': 13,
+            'heart_rate_lag_1': 88,
+            'heart_rate_lag_2': 87,
+            'temperature_lag_1': 36.75,
+            'temperature_lag_2': 36.8
+        })
+
+        # Create lagged features
+        result = self.processor.create_lagged_features_for_row(current_row, previous_rows, ['icp', 'heart_rate', 'temperature'], hours=2)
+
+        # Convert result to Series for comparison
+        result_series = pd.Series(result)
+
+        # Assert that the resulting Series matches the expected output
+        assert_series_equal(result_series, expected_output)
 
 
 if __name__ == '__main__':

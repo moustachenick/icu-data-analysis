@@ -27,29 +27,29 @@ class DataPreProcessor:
         # Read the data from the CSV file
         df = pd.read_csv(raw_data_file_path, engine='python')
 
-        print("\n~~~~STEP 1: Replacing missing values~~~~\n")
+        print("\n~~~~ STEP 1: Standardizing missing values (converting 0 to Nan, etc) ~~~~\n")
         df = self.standardize_missing_values(df)
 
         if input("Do you want to drop columns with high missing values? (y/n): ").lower() == 'y':
-            print("\n~~~~STEP 2: Dropping columns with high missing values~~~~\n")
+            print("\n~~~~ STEP 2: Dropping columns with high missing values ~~~~\n")
             df = self.drop_columns_with_high_missing_values(df)
 
         if input("Do you want to impute missing values? (y/n): ").lower() == 'y':
-            print("\n~~~~STEP 3: Imputing missing values~~~~\n")
+            print("\n~~~~ STEP 3: Imputing missing values ~~~~\n")
             df = self.known_nearest_neighbor_imputer(df)
 
         if input("Do you want to delete negative ICP values? (y/n): ").lower() == 'y':
-            print("\n~~~~STEP 4: Deleting negative ICP values~~~~\n")
+            print("\n~~~~ STEP 4: Deleting negative ICP values ~~~~\n")
             df = self.delete_negative_icp_values(df)
 
         if input("Do you want to clean ICP outliers? (y/n): ").lower() == 'y':
-            print("\n~~~~STEP 5: Cleaning ICP outliers~~~~\n")
+            print("\n~~~~ STEP 5: Cleaning ICP outliers ~~~~\n")
             df = self.clean_icp_outliers(df)
 
-        print("\n~~~~STEP 6: Shifting ICP values~~~~\n")
+        print("\n~~~~ STEP 6: Shifting ICP values ~~~~\n")
         df = self.shift_icp_values(df)
 
-        print("\n~~~~STEP 7: Creating lagged features~~~~\n")
+        print("\n~~~~ STEP 7: Creating lagged features ~~~~\n")
         df = self.create_lagged_features(df)
 
         print("Preprocessing complete.")
