@@ -9,12 +9,7 @@ class XGBoost_classifier:
     A class that uses the XGboost algorithm to predict abnormal Intracranial Pressure Values 
     """
 
-    import pandas as pd
-from pathlib import Path
-import os
-from sklearn.preprocessing import MinMaxScaler
-
-def __init__(self, data=None, file_path=None):
+    def __init__(self, data=None, file_path=None):
        
         self.data = data
         self.file_path = file_path
@@ -22,7 +17,7 @@ def __init__(self, data=None, file_path=None):
         if self.data is None and self.file_path is not None:
             self.load_data()
 
-def load_data(self):
+    def load_data(self):
     
         try:
             self.data = pd.read_csv(self.file_path)
@@ -30,13 +25,18 @@ def load_data(self):
         except Exception as e:
             print(f"Error loading data: {e}")
 
-def normalization(self, data=None):
-        """
-        Normalize the data using Min-Max scaling.
+    def normalization(self, exclude_columns=["icp_next","patient_id", "date_of_birth", "timestamp"]):
+       
+         """
+         Normalize the data using Min-Max scaling while excluding specified columns.
+         """
         
-        """
-        scaler = MinMaxScaler()
-        normalized_data = scaler.fit_transform(data)
-        self.data = pd.DataFrame(normalized_data, columns=data.columns)
-        print("Data successfully normalized.")
-        return self.data
+         columns_to_scale = [col for col in self.data.columns if col not in exclude_columns]
+         scaler = MinMaxScaler()
+         self.data[columns_to_scale] = scaler.fit_transform(self.data[columns_to_scale])
+
+         print(" Data successfully normalized.")
+         return self.data
+    
+
+    
