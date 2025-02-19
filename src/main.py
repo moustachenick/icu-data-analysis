@@ -4,11 +4,12 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from tabulate import tabulate
 
-from icu_data_parser.DataParser import DataParser
-from icu_data_parser.DataPreProcessor import DataPreProcessor
-from icu_icp_predictions.ICPRegressionPredictor import ICPRegressionPredictor
-from icu_data_parser.BinaryDataProcessor import BinaryDataProcessor
-from helper.DataFramePrinter import DataFramePrinter
+from classification.classification_predictor import ClassificationPredictor
+from data_parser.data_parser import DataParser
+from data_parser.data_pre_processor import DataPreProcessor
+from regression.regression_predictor import RegressionPredictor
+from data_parser.binary_data_processor import BinaryDataProcessor
+from helper.data_frame_printer import DataFramePrinter
 
 
 def print_dataset_statistics(train_data, test_data):
@@ -23,8 +24,7 @@ def print_dataset_statistics(train_data, test_data):
     train_stats = calculate_statistics(train_data)
     test_stats = calculate_statistics(test_data)
 
-    headers = ["Dataset", "Total Rows", "Rows with 1 Null", "Percentage", "Rows with >1 Null",
-               "Percentage"]
+    headers = ["Dataset", "Total Rows", "Rows with 1 Null", "Percentage", "Rows with >1 Null", "Percentage"]
     table = [
         ["Train"] + train_stats,
         ["Test"] + test_stats
@@ -32,6 +32,50 @@ def print_dataset_statistics(train_data, test_data):
 
     print("\nDataset Statistics:\n")
     print(tabulate(table, headers=headers, tablefmt="fancy_grid"))
+
+
+def run_classification_pipeline(X_train, X_test, y_train, y_test, data_dir_path):
+    # Convert target variable to binary values
+    binary_processor = BinaryDataProcessor()
+    train_data = pd.concat([X_train, y_train], axis=1)
+    test_data = pd.concat([X_test, y_test], axis=1)
+    train_data = binary_processor.create_binary_data(train_data)
+    test_data = binary_processor.create_binary_data(test_data)
+
+    # Save the modified datasets with a "_classification" suffix
+    train_data.to_csv(data_dir_path + "/train_data_classification.csv", index=False)
+    test_data.to_csv(data_dir_path + "/test_data_classification.csv", index=False)
+
+    if input("Do you want to continue with the Classification pipeline? (y/n): ").lower() == 'y':
+        print("\nRunning the Classification pipeline...\n")
+        # Initialize the ClassificationPredictor and run the pipeline
+        predictor = ClassificationPredictor()
+
+        # Drop the 'icp_next' column from the features,
+        # since for classification we are predicting the binary target variable ("icp_next_binary")
+        X_train = train_data.drop(columns=["icp_next"])
+        y_train = train_data["icp_next"]
+        X_test = test_data.drop(columns=["icp_next"])
+        y_test = test_data["icp_next"]
+        results = predictor.run_pipeline(X_train, X_test, y_train, y_test)
+
+        if results is None:
+            print("Error: No results returned from the Classification Predictor.")
+        else:
+            # Print the evaluation results
+            # TODO let's see what the output of the results will be
+            pass
+
+
+def run_regression_pipeline(X_train, X_test, y_train, y_test):
+    if input("Do you want to continue with the Regression pipeline? (y/n): ").lower() == 'y':
+        # Initialize the ICPRegressionPredictor and run the pipeline
+        predictor = RegressionPredictor()
+        results = predictor.run_pipeline(X_train, X_test, y_train, y_test)
+
+        # Print the evaluation results
+        DataFramePrinter.print_dataframe_tabulated(results["evaluation_results"], "Regression Predictions Results")
+        DataFramePrinter.print_dataframe_tabulated(results["cross_validation_results"], "Cross-Validation Results")
 
 
 def main(mode):
@@ -75,27 +119,9 @@ def main(mode):
     print_dataset_statistics(train_data, test_data)
 
     if mode == "classification":
-        # Convert target variable to binary values
-        binary_processor = BinaryDataProcessor()
-        binary_processor.create_binary_data(train_data)
-        binary_processor.create_binary_data(test_data)
-
-        # Save the modified datasets with a "_classification" suffix
-        train_data.to_csv(data_dir_path + "/train_data_classification.csv", index=False)
-        test_data.to_csv(data_dir_path + "/test_data_classification.csv", index=False)
-
-        if input("Do you want to continue with the Classification pipeline? (y/n): ").lower() == 'y':
-            # TODO: Implement classification pipeline
-            print("Classification mode is not implemented yet.")
+        run_classification_pipeline(X_train, X_test, y_train, y_test, data_dir_path)
     else:
-        if input("Do you want to continue with the Regression pipeline? (y/n): ").lower() == 'y':
-            # Initialize the ICPRegressionPredictor and run the pipeline
-            predictor = ICPRegressionPredictor()
-            results = predictor.run_pipeline(X_train, X_test, y_train, y_test)
-
-            # Print the evaluation results
-            DataFramePrinter.print_dataframe_tabulated(results["evaluation_results"], "Regression Predictions Results")
-            DataFramePrinter.print_dataframe_tabulated(results["cross_validation_results"], "Cross-Validation Results")
+        run_regression_pipeline(X_train, X_test, y_train, y_test)
 
     print("\nICP Prediction pipeline completed. ✅")
 

@@ -12,10 +12,10 @@ from sklearn.metrics import mean_squared_error
 from sklearn.metrics import mean_absolute_error
 from sklearn.metrics import root_mean_squared_error
 from sklearn.model_selection import KFold, cross_val_score
-from icu_data_regression_classes.BaselineMeanRegression import BaselineMeanRegression
-from icu_data_parser.DataPreProcessor import DataPreProcessor
-from icu_data_regression_classes.BaselineHistoryRegression import BaselineHistoryRegression
-from icu_data_regression_classes.RegressionModelPlotter import RegressionModelPlotter
+from regression.baseline_mean_regression import BaselineMeanRegression
+from data_parser.data_pre_processor import DataPreProcessor
+from regression.baseline_history_regression import BaselineHistoryRegression
+from regression.regression_model_plotter import RegressionModelPlotter
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import Lasso
 from sklearn.metrics import r2_score

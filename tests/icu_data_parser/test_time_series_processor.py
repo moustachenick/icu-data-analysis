@@ -9,7 +9,7 @@ import sys
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'src')))
 
-from icu_data_parser.TimeSeriesProcessor import TimeSeriesProcessor
+from data_parser.time_series_processor import TimeSeriesProcessor
 
 
 class TestTimeSeriesProcessor(unittest.TestCase):

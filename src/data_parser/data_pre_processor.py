@@ -4,7 +4,7 @@ import pandas as pd
 from sklearn.impute import KNNImputer
 from pathlib import Path
 
-from icu_data_parser.TimeSeriesProcessor import TimeSeriesProcessor
+from data_parser.time_series_processor import TimeSeriesProcessor
 
 
 class DataPreProcessor:

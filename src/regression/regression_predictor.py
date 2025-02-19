@@ -6,10 +6,10 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error
 from sklearn.model_selection import KFold, cross_val_score
 from sklearn.preprocessing import StandardScaler
 
-from helper.DataFramePrinter import DataFramePrinter
+from helper.data_frame_printer import DataFramePrinter
 
 
-class ICPRegressionPredictor:
+class RegressionPredictor:
     def __init__(self):
         """
         Initialize the ICPPrediction class.
