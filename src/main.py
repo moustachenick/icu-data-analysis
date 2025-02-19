@@ -99,12 +99,12 @@ def run_classification_pipeline(X_train, X_test, y_train, y_test, data_dir_path)
         # Initialize the ClassificationPredictor and run the pipeline
         predictor = ClassificationPredictor()
 
-        # Drop the 'icp_next' column from the features,
+        # Drop the 'icp_next_binary' column from the features,
         # since for classification we are predicting the binary target variable ("icp_next_binary")
-        X_train = train_data.drop(columns=["icp_next"])
-        y_train = train_data["icp_next"]
-        X_test = test_data.drop(columns=["icp_next"])
-        y_test = test_data["icp_next"]
+        X_train = train_data.drop(columns=["icp_next_binary"])
+        y_train = train_data["icp_next_binary"]
+        X_test = test_data.drop(columns=["icp_next_binary"])
+        y_test = test_data["icp_next_binary"]
         results = predictor.run_pipeline(X_train, X_test, y_train, y_test)
 
         if results is None:
