@@ -36,7 +36,7 @@ class BinaryDataProcessor:
         # remove the original 'icp_next' column, since it is no longer needed
         self.data.drop(columns=['icp_next'], inplace=True)
         print("Binary column 'icp_next_binary' created successfully.")
-
+        return self.data
 
 # --- TEST SECTION ---
 if __name__ == "__main__":
