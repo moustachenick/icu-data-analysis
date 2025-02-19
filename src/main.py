@@ -12,6 +12,54 @@ from data_parser.binary_data_processor import BinaryDataProcessor
 from helper.data_frame_printer import DataFramePrinter
 
 
+def main(mode):
+    """
+    Main function to initialize and run the ICPPrediction pipeline.
+    Args:
+        mode (str): Mode of operation, either "regression" or "classification".
+    """
+    # Path for the raw data directory (icu-data-analysis/data)
+    data_dir_path = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "data")
+    )
+
+    # Use the DataParser class to process the raw data
+    data_parser = DataParser(data_dir_path)
+    raw_data_file_path = data_parser.run()
+
+    print_statistics_about_the_data(raw_data_file_path)
+
+    # Initialize the DataPreProcessor class and run the preprocess pipeline
+    print("Running the Data Preprocessing pipeline...\n")
+    data_pre_processor = DataPreProcessor(raw_data_file_path)
+
+    cleaned_df_lagged = data_pre_processor.pre_process_dataset()
+
+    # Create train/test split and save the datasets
+    print("\nCreating train/test split and saving datasets...")
+    train_size = 0.8  # 80/20 split
+    random_state = 42
+    X = cleaned_df_lagged.drop(columns=["icp_next", "timestamp", "patient_id", "date_of_birth"])
+    y = cleaned_df_lagged["icp_next"]
+    X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=train_size, random_state=random_state)
+
+    # Save train and test datasets
+    train_data = pd.concat([X_train, y_train], axis=1)
+    test_data = pd.concat([X_test, y_test], axis=1)
+    train_data.to_csv(data_dir_path + "/train_data.csv", index=False)
+    test_data.to_csv(data_dir_path + "/test_data.csv", index=False)
+
+    # Print dataset statistics
+    print_dataset_statistics(train_data, test_data)
+
+    if mode == "classification":
+        run_classification_pipeline(X_train, X_test, y_train, y_test, data_dir_path)
+    else:
+        run_regression_pipeline(X_train, X_test, y_train, y_test)
+
+    print("\nICP Prediction pipeline completed. ✅")
+
+
 def print_dataset_statistics(train_data, test_data):
     def calculate_statistics(df):
         total_rows = len(df)
@@ -76,54 +124,6 @@ def run_regression_pipeline(X_train, X_test, y_train, y_test):
         # Print the evaluation results
         DataFramePrinter.print_dataframe_tabulated(results["evaluation_results"], "Regression Predictions Results")
         DataFramePrinter.print_dataframe_tabulated(results["cross_validation_results"], "Cross-Validation Results")
-
-
-def main(mode):
-    """
-    Main function to initialize and run the ICPPrediction pipeline.
-    Args:
-        mode (str): Mode of operation, either "regression" or "classification".
-    """
-    # Path for the raw data directory (icu-data-analysis/data)
-    data_dir_path = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "data")
-    )
-
-    # Use the DataParser class to process the raw data
-    data_parser = DataParser(data_dir_path)
-    raw_data_file_path = data_parser.run()
-
-    print_statistics_about_the_data(raw_data_file_path)
-
-    # Initialize the DataPreProcessor class and run the preprocess pipeline
-    print("Running the Data Preprocessing pipeline...\n")
-    data_pre_processor = DataPreProcessor(raw_data_file_path)
-
-    cleaned_df_lagged = data_pre_processor.pre_process_dataset()
-
-    # Create train/test split and save the datasets
-    print("\nCreating train/test split and saving datasets...")
-    train_size = 0.8  # 80/20 split
-    random_state = 42
-    X = cleaned_df_lagged.drop(columns=["icp_next", "timestamp", "patient_id", "date_of_birth"])
-    y = cleaned_df_lagged["icp_next"]
-    X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=train_size, random_state=random_state)
-
-    # Save train and test datasets
-    train_data = pd.concat([X_train, y_train], axis=1)
-    test_data = pd.concat([X_test, y_test], axis=1)
-    train_data.to_csv(data_dir_path + "/train_data.csv", index=False)
-    test_data.to_csv(data_dir_path + "/test_data.csv", index=False)
-
-    # Print dataset statistics
-    print_dataset_statistics(train_data, test_data)
-
-    if mode == "classification":
-        run_classification_pipeline(X_train, X_test, y_train, y_test, data_dir_path)
-    else:
-        run_regression_pipeline(X_train, X_test, y_train, y_test)
-
-    print("\nICP Prediction pipeline completed. ✅")
 
 
 def print_statistics_about_the_data(raw_data_file_path):
