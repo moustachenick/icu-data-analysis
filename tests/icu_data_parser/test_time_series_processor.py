@@ -134,8 +134,8 @@ class TestTimeSeriesProcessor(unittest.TestCase):
             'icp': 14,
             'heart_rate': 84,
             'temperature': 36.9,
-            'icp_lag_1': (14 + 13) / 2,  # Average of measurements in 03:00-04:00
-            'icp_lag_2': (15 + 16 + 14) / 3,  # Average of measurements in 02:00-03:00
+            'icp_lag_1': (14 + 13) / 2,  # Mean of measurements in 03:00-04:00
+            'icp_lag_2': (15 + 16 + 14) / 3,  # Mean of measurements in 02:00-03:00
             'heart_rate_lag_1': (87 + 86) / 2,
             'heart_rate_lag_2': (85 + 88 + 83) / 3,
             'temperature_lag_1': (36.8 + 36.7) / 2,
@@ -185,8 +185,8 @@ class TestTimeSeriesProcessor(unittest.TestCase):
             'icp': 14,
             'heart_rate': 84,
             'temperature': 36.9,
-            'icp_lag_1': (14 + 13) / 2,  # Average of measurements in 03:00-04:00
-            'icp_lag_2': (15 + 16 + 14) / 3,  # Average of measurements in 02:00-03:00
+            'icp_lag_1': (14 + 13) / 2,  # Mean of measurements in 03:00-04:00
+            'icp_lag_2': (15 + 16 + 14) / 3,  # Mean of measurements in 02:00-03:00
             'heart_rate_lag_1': (87 + 86) / 2,
             'heart_rate_lag_2': (85 + 88 + 83) / 3,
             'temperature_lag_1': (36.8 + 36.7) / 2,
@@ -240,11 +240,11 @@ class TestTimeSeriesProcessor(unittest.TestCase):
             'icp': 14,
             'heart_rate': 84,
             'temperature': 36.9,
-            'icp_lag_1': (14 + 13) / 2,  # Average of measurements in 05:00-06:00
-            'icp_lag_2': (15 + 16) / 2,  # Average of measurements in 04:00-05:00
-            'icp_lag_3': (14 + 12) / 2,  # Average of measurements in 03:00-04:00
-            'icp_lag_4': (11 + 10) / 2,  # Average of measurements in 02:00-03:00
-            'icp_lag_5': (9 + 8) / 2,    # Average of measurements in 01:00-02:00
+            'icp_lag_1': (14 + 13) / 2,  # Mean of measurements in 05:00-06:00
+            'icp_lag_2': (15 + 16) / 2,  # Mean of measurements in 04:00-05:00
+            'icp_lag_3': (14 + 12) / 2,  # Mean of measurements in 03:00-04:00
+            'icp_lag_4': (11 + 10) / 2,  # Mean of measurements in 02:00-03:00
+            'icp_lag_5': (9 + 8) / 2,    # Mean of measurements in 01:00-02:00
             'heart_rate_lag_1': (87 + 86) / 2,
             'heart_rate_lag_2': (85 + 88) / 2,
             'heart_rate_lag_3': (83 + 82) / 2,
