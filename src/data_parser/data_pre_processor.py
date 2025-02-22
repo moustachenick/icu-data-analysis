@@ -278,7 +278,8 @@ class DataPreProcessor:
         """
 
         # Create lagged features
-        hours = 3  # Number of hours to use for creating lag features
+        # Number of hours to use for creating lag features
+        hours = 5
         columns_to_lag = [
             "icp", "temperature", "mean_blood_pressure", "cpp", "glucose",
             "haemoglobin", "heart_rate", "paco2", "pao2", "peep", "ph", "spo2"

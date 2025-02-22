@@ -3,7 +3,7 @@ import pandas as pd
 
 class TimeSeriesProcessor:
 
-    def process_data(self, data, hours=2, columns_to_lag=None):
+    def process_data(self, data, hours=5, columns_to_lag=None):
         """
         Process the full dataset by creating lag features for each row and handling missing values.
         This method creates lag features for each row based on the previous measurements within the specified number of hours.
@@ -59,8 +59,8 @@ class TimeSeriesProcessor:
         Main method to process the full dataset by creating lag features for each row.
         This method processes each patient's data independently and then concatenates the results.
 
-        :param data: data (pd.DataFrame): The full dataset containing time series data for multiple patients.
-        :param hours: hours (int): The number of hours to use for creating lag features.
+        :param data: (pd.DataFrame): The full dataset containing time series data for multiple patients.
+        :param hours: (int): The number of hours to use for creating lag features.
         :param columns_to_lag: List of columns for which to create lag features.
         :return: pd.DataFrame: A new dataframe with lagged features as additional columns.
         """
@@ -153,6 +153,8 @@ class TimeSeriesProcessor:
         Returns:
             dict: A dictionary representing the row with lagged features added.
         """
+
+        print(f"\nHour: {hours}")
         # Initialize the row dictionary with the current row data
         row_dict = current_row.to_dict()
 
