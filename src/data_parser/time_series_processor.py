@@ -153,8 +153,6 @@ class TimeSeriesProcessor:
         Returns:
             dict: A dictionary representing the row with lagged features added.
         """
-
-        print(f"\nHour: {hours}")
         # Initialize the row dictionary with the current row data
         row_dict = current_row.to_dict()
 
