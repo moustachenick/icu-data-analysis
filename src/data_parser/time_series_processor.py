@@ -29,28 +29,13 @@ class TimeSeriesProcessor:
 
         processed_data_df = self.create_lagged_features_dataset(data, hours, columns_to_lag)
 
-
-        print("\nSTEP 2: Forward filling missing non-lagged values per patient")
-        # Identify non-lagged columns
-        non_lagged_columns = [col for col in processed_data_df.columns if 'lag' not in col]
-
-        if 'patient_id' not in processed_data_df.columns:
-            raise KeyError("'patient_id' column is missing before groupby operation.")
-
-        # Use forward fill per patient to handle missing values in non-lagged columns
-        if processed_data_df.empty:
-            print("Warning: Processed DataFrame is empty. Skipping forward fill.")
-        else:
-            # Forward fill only the non-lagged columns
-            processed_data_df[non_lagged_columns] = (
-                processed_data_df.groupby('patient_id', group_keys=False)[non_lagged_columns]
-                .transform('ffill')
-                .infer_objects()  # Ensures correct data types
-            )
-
-        print("\nSTEP 3: Dropping rows with missing values in lagged columns")
+        print("\nSTEP 2: Dropping rows with missing values in lagged columns")
+        initial_row_count = processed_data_df.shape[0]
         processed_data_df = processed_data_df.dropna(
             subset=[col for col in processed_data_df.columns if 'lag' in col])
+        dropped_row_count = initial_row_count - processed_data_df.shape[0]
+
+        print(f"Number of rows dropped: {dropped_row_count}")
 
         return pd.DataFrame(processed_data_df)
 
@@ -181,4 +166,3 @@ class TimeSeriesProcessor:
                     row_dict[f"{col}_lag_{lag}"] = None  # No data for this hour
 
         return row_dict
-

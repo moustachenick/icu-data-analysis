@@ -36,27 +36,31 @@ class DataPreProcessor:
         # Delete patients with 2 rows or less
         df = df.groupby('patient_id').filter(lambda x: len(x) > 2)
 
-        print("\n~~~~ STEP 3: Standardizing missing values (converting 0 to Nan, etc) ~~~~\n")
+        print("\n~~~~ STEP 3: Creating the \"ICP next\" column for each row ~~~~\n")
+        df = self.create_icp_next_column(df)
+        print(f"Number of rows in the dataset after the creation of the 'icp_next' column: {df.shape[0]}")
+
+        print("\n~~~~ STEP 4: Dropping the rows that have null \"ICP next\" column ~~~~\n")
+        df = self.drop_rows_with_null_target_column(df)
+
+        print("\n~~~~ STEP 5: Standardizing missing values (converting 0 to Nan, etc) ~~~~\n")
         df = self.standardize_missing_values(df)
 
         if input("Do you want to drop columns with more than 1 missing values? (y/n): ").lower() == 'y':
-            print("\n~~~~ STEP 4: Dropping columns with high missing values ~~~~\n")
+            print("\n~~~~ STEP 6: Dropping columns with high missing values ~~~~\n")
             df = self.drop_columns_with_high_missing_values(df)
             print(f"Number of rows in the dataset after the dropping: {df.shape[0]}")
 
         if input("Do you want to delete rows that have ICP outliers? (y/n): ").lower() == 'y':
-            print("\n~~~~ STEP 5: Cleaning ICP outliers ~~~~\n")
+            print("\n~~~~ STEP 7: Cleaning ICP outliers ~~~~\n")
             df = self.clean_icp_outliers(df)
             print(f"Number of rows in the dataset after the cleaning: {df.shape[0]}")
 
         if input("Do you want to impute missing values? (y/n): ").lower() == 'y':
-            print("\n~~~~ STEP 6: Imputing missing values ~~~~\n")
+            print("\n~~~~ STEP 8: Imputing missing values ~~~~\n")
             df = self.known_nearest_neighbor_imputer(df)
 
-        print("\n~~~~ STEP 7: Shifting ICP values ~~~~\n")
-        df = self.shift_icp_values(df)
-
-        print("\n~~~~ STEP 8: Creating lagged features ~~~~\n")
+        print("\n~~~~ STEP 9: Creating lagged features ~~~~\n")
         df = self.create_lagged_features(df)
 
         print("Preprocessing complete.")
@@ -223,52 +227,39 @@ class DataPreProcessor:
 
         return cleaned_df
 
-    def shift_icp_values(self, data):
+    def create_icp_next_column(self, data):
         # A problem that we have in the dataset, is that each row has the ICP at that timestamp,
-        # and we actually want to predict the ICP in the "next" timestamp.
+        # and we actually want to predict the ICP in the "next" hour.
         # So for example to be able to say: "OK, I see that patient with id 1001 right now has X temperature, Y blood pressure, and Z paco2,
-        # so what is his ICP going to be in an hour"?
-        # we could shift the ICP values by 1 row, so that each row has the ICP value at the next timestamp.
-        # A problem is that the measurements are not taken at regular intervals, so we cannot just shift the ICP values by 1 row.
-        # Instead of shifting the ICP values by one row, we need to ensure that the next timestamp is within a reasonable timeframe, such as within an hour.
-        # We can add a new column called 'next_icp' that contains the ICP value at the next timestamp.
-
-        # So, the approach is to:
-        # 1.  Calculate Time Differences Between Consecutive Rows:
-        #     For each patient, calculate the time difference between consecutive measurements.
-        #     Only keep rows where the time difference is within a specified threshold (e.g., 1 hour)
-        # 2. Shift ICP Values for Rows with Valid Gaps:
-        #     Once the time gaps are calculated, shift the ICP values for rows that meet the time threshold.
-        #     Rows where the gap exceeds the threshold can be excluded..
+        # so, what is his ICP going to be in 1 hour"?
 
         # Make a copy of the DataFrame to avoid the SettingWithCopyWarning
         data = data.copy()
         # Convert the timestamp column to datetime format
         data['timestamp'] = pd.to_datetime(data['timestamp'])
 
-        # Shift the timestamp first, then calculate the difference between consecutive rows
-        data['time_shifted'] = data.groupby('patient_id')['timestamp'].shift(-1)
-
-        # Now calculate the time differences between consecutive rows for each patient
-        data['time_diff'] = data['time_shifted'] - data['timestamp']
-
-        # Drop the 'time_shifted' column as it is no longer needed
-        data = data.drop(columns=['time_shifted'])
-
         # Define the maximum time gap (e.g., 1 hour) for considering the "next" timestamp
         max_time_gap = pd.Timedelta(hours=1)
 
-        # Shift the ICP column where the time difference is within the acceptable limit (e.g., 1 hour)
-        data['icp_next'] = data.groupby('patient_id')['icp'].shift(-1)
+        # Initialize the 'icp_next' column with NaN
+        data['icp_next'] = np.nan
 
-        # Use .loc to avoid the SettingWithCopyWarning when modifying the DataFrame
-        data.loc[data['time_diff'] > max_time_gap, 'icp_next'] = None  # Exclude rows with large time gaps
+        # Iterate over each patient
+        for patient_id, patient_data in data.groupby('patient_id'):
+            # Sort the patient's data by timestamp to ensure it's in chronological order
+            patient_data = patient_data.sort_values(by='timestamp')
 
-        # Drop rows where the target (icp_next) is NaN, using .loc again to avoid the warning
-        data = data.loc[~data['icp_next'].isna()]
+            # Iterate through each row in the patient's data
+            for idx, current_row in patient_data.iterrows():
+                # Define the next hour timestamp
+                next_hour_time = current_row['timestamp'] + max_time_gap
 
-        # Drop the 'time_diff' column as it is no longer needed
-        data = data.drop(columns=['time_diff'])
+                # Find the row corresponding to the next hour
+                next_hour_row = patient_data[patient_data['timestamp'] == next_hour_time]
+
+                # If a row exists for the next hour, set the 'icp_next' value
+                if not next_hour_row.empty:
+                    data.loc[idx, 'icp_next'] = next_hour_row['icp'].values[0]
 
         return data
 
@@ -279,7 +270,7 @@ class DataPreProcessor:
 
         # Create lagged features
         # Number of hours to use for creating lag features
-        hours = 5
+        hours = 4
         columns_to_lag = [
             "icp", "temperature", "mean_blood_pressure", "cpp", "glucose",
             "haemoglobin", "heart_rate", "paco2", "pao2", "peep", "ph", "spo2"
@@ -290,5 +281,20 @@ class DataPreProcessor:
         )
 
         print(f"\nColumns after creating lagged features: {data.columns}")
+
+        return data
+
+    def drop_rows_with_null_target_column(self, data):
+        # Store the initial number of rows
+        initial_row_count = data.shape[0]
+
+        # Drop rows with null 'icp_next' values
+        data = data.dropna(subset=['icp_next'])
+
+        # Calculate the number of dropped rows
+        dropped_row_count = initial_row_count - data.shape[0]
+
+        print(f"Number of rows in the dataset after the dropping: {data.shape[0]}")
+        print(f"Number of dropped rows: {dropped_row_count}")
 
         return data
