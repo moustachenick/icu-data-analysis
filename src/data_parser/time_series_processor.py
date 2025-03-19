@@ -30,12 +30,26 @@ class TimeSeriesProcessor:
         processed_data_df = self.create_lagged_features_dataset(data, hours, columns_to_lag)
 
         print("\nSTEP 2: Dropping rows with missing values in lagged columns")
-        initial_row_count = processed_data_df.shape[0]
-        processed_data_df = processed_data_df.dropna(
-            subset=[col for col in processed_data_df.columns if 'lag' in col])
-        dropped_row_count = initial_row_count - processed_data_df.shape[0]
 
-        print(f"Number of rows dropped: {dropped_row_count}")
+        # Calculate the number of rows with null values in lagged columns
+        lagged_columns = [col for col in processed_data_df.columns if 'lag' in col]
+        rows_with_nulls = processed_data_df[lagged_columns].isnull().any(axis=1).sum()
+        total_rows = processed_data_df.shape[0]
+        percentage_nulls = (rows_with_nulls / total_rows) * 100
+
+        print(f"Number of rows with null values in lagged columns: {rows_with_nulls}")
+        print(f"Percentage of the dataset with null values in lagged columns: {percentage_nulls:.2f}%")
+
+        # Ask the user if they want to drop the rows
+        user_input = input("Do you want to drop the rows with null values in lagged columns? (y/n): ").strip().lower()
+
+        if user_input == 'y':
+            initial_row_count = processed_data_df.shape[0]
+            processed_data_df = processed_data_df.dropna(subset=lagged_columns)
+            dropped_row_count = initial_row_count - processed_data_df.shape[0]
+            print(f"Number of rows dropped: {dropped_row_count}")
+        else:
+            print("Rows with null values in lagged columns were not dropped.")
 
         return pd.DataFrame(processed_data_df)
 
