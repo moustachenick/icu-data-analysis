@@ -39,8 +39,8 @@ def main(mode):
     print("\nCreating train/test split and saving datasets...")
     train_size = 0.8  # 80/20 split
     random_state = 42
-    X = cleaned_df_lagged.drop(columns=["icp_next", "timestamp", "patient_id", "date_of_birth"])
-    y = cleaned_df_lagged["icp_next"]
+    X = cleaned_df_lagged.drop(columns=["icp"])
+    y = cleaned_df_lagged["icp"]
     X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=train_size, random_state=random_state)
 
     # Save train and test datasets
@@ -99,12 +99,12 @@ def run_classification_pipeline(X_train, X_test, y_train, y_test, data_dir_path)
         # Initialize the ClassificationPredictor and run the pipeline
         predictor = ClassificationPredictor()
 
-        # Drop the 'icp_next_binary' column from the features,
-        # since for classification we are predicting the binary target variable ("icp_next_binary")
-        X_train = train_data.drop(columns=["icp_next_binary"])
-        y_train = train_data["icp_next_binary"]
-        X_test = test_data.drop(columns=["icp_next_binary"])
-        y_test = test_data["icp_next_binary"]
+        # Drop the 'icp_binary' column from the features,
+        # since for classification we are predicting the binary target variable ("icp_binary")
+        X_train = train_data.drop(columns=["icp_binary"])
+        y_train = train_data["icp_binary"]
+        X_test = test_data.drop(columns=["icp_binary"])
+        y_test = test_data["icp_binary"]
         results = predictor.run_pipeline(X_train, X_test, y_train, y_test)
 
         if results is None:

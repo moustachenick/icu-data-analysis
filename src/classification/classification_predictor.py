@@ -36,8 +36,6 @@ class ClassificationPredictor:
         Returns:
             pd.DataFrame: The normalized data.
         """
-        if exclude_columns is None:
-            exclude_columns = ["icp_next", "patient_id", "date_of_birth", "timestamp"]
 
         columns_to_scale = [col for col in data.columns if col not in exclude_columns]
         scaler = MinMaxScaler()

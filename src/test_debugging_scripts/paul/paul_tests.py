@@ -58,8 +58,8 @@ print("\nNumber of rows with NaN values: ", cleaned_df.isnull().sum().sum())
 # We can now use the Regression to predict the ICP values for the rest of the data.
 
 # Prepare the features and target variable
-X = cleaned_df.drop(columns=[ "icp_next"])  # Features
-y = cleaned_df["icp_next"]  # Target is the "next ICP" at the next valid timestamp
+X = cleaned_df.drop(columns=[ "icp"])  # Features
+y = cleaned_df["icp"]  # Target is the "next ICP" at the next valid timestamp
 
 
 # we need to create a train-test split of the data

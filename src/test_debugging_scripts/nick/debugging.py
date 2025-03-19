@@ -4,8 +4,6 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.
 import pandas as pd
 from data_parser.data_pre_processor import DataPreProcessor
 
-
-
 file_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'data', 'final_data.csv'))
 
 data_processor = DataPreProcessor(file_path)

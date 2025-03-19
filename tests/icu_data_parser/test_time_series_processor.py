@@ -77,6 +77,37 @@ class TestTimeSeriesProcessor(unittest.TestCase):
         # Assert that the resulting DataFrame matches the expected output
         assert_frame_equal(result, expected_output)
 
+    def test_create_lagged_features_for_real_life_dataset(self):
+        """
+        Test the entire process_data method to ensure lag features are generated correctly,
+        by using input and expected output data from external CSV files.
+        """
+        # Load the input data and expected output from CSV files
+        input_data_path = os.path.join(self.datasets_dir, 'fake_final_data.csv')
+        expected_output_path = os.path.join(self.datasets_dir, 'fake_data_lagged.csv')
+
+        input_data = pd.read_csv(input_data_path, parse_dates=['timestamp'], index_col=False)
+        expected_output = pd.read_csv(expected_output_path, parse_dates=['timestamp'], index_col=False)
+
+        # Process the input data and create the lag features
+        result = self.processor.create_lagged_features_dataset(input_data, hours=5,
+                                                               columns_to_lag=['icp', 'heart_rate', 'mean_blood_pressure'])
+        # drop rows with null in 'icp' column
+        result = result.dropna(subset=['icp'])
+
+        # make sure the result and the expected_output have the same column order
+        result = result[expected_output.columns]
+
+        # make sure the result and the expected_output have the same data types
+        result = result.astype(expected_output.dtypes)
+
+        # Reset the index for both result and expected_output to ignore any index differences
+        result.reset_index(drop=True, inplace=True)
+        expected_output.reset_index(drop=True, inplace=True)
+
+        # Assert that the resulting DataFrame matches the expected output
+        assert_frame_equal(result, expected_output)
+
     def test_process_patient_data(self):
         """
         Test processing patient data and creating lag features for a single patient.

@@ -28,8 +28,8 @@ data_processor = DataPreProcessor(file_path)
 cleaned_df = data_processor.pre_process_dataset()
 
 # Prepare the features and target variable
-X = cleaned_df.drop(columns=["icp", "icp_next"])  # Features
-y = cleaned_df["icp_next"]  # Target is the "next ICP" at the next valid timestamp
+X = cleaned_df.drop(columns=["icp", "icp"])  # Features
+y = cleaned_df["icp"]  # Target is the "next ICP" at the next valid timestamp
 
 # Let's use only the first 20% of the data, for speed (TODO: remove in the final version)
 X = X[:int(0.2 * X.shape[0])]

@@ -26,16 +26,16 @@ class BinaryDataProcessor:
 
     def create_binary_data(self, data=None):
         """
-        Convert the 'icp_next' column into binary values (0 if < 22, 1 if >= 22).
+        Convert the 'icp' column into binary values (0 if < 22, 1 if >= 22).
         """
         if data is not None:
             self.data = data
 
         # Create a new binary column
-        self.data['icp_next_binary'] = self.data['icp_next'].apply(lambda x: 1 if x >= 22 else 0)
-        # remove the original 'icp_next' column, since it is no longer needed
-        self.data.drop(columns=['icp_next'], inplace=True)
-        print("Binary column 'icp_next_binary' created successfully.")
+        self.data['icp_binary'] = self.data['icp'].apply(lambda x: 1 if x >= 22 else 0)
+        # remove the original 'icp' column, since it is no longer needed
+        self.data.drop(columns=['icp'], inplace=True)
+        print("Binary column 'icp_binary' created successfully.")
         return self.data
 
 # --- TEST SECTION ---
@@ -54,7 +54,7 @@ if __name__ == "__main__":
     processor.create_binary_data()
 
     # Verify the result
-    print(processor.data[['icp_next', 'icp_next_binary']].head())
+    print(processor.data[['icp', 'icp_binary']].head())
 
     # (Optional) Save the updated DataFrame
     output_file = os.path.abspath(

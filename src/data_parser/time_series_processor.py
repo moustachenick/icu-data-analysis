@@ -111,6 +111,9 @@ class TimeSeriesProcessor:
         Returns:
             pd.DataFrame: A DataFrame containing the previous rows within the specified number of hours.
         """
+        # Ensure the timestamp column is in datetime format
+        patient_data.loc[:, 'timestamp'] = pd.to_datetime(patient_data['timestamp'])
+
         # Get the timestamp of the current row
         current_time = patient_data.iloc[current_index]['timestamp']
 
@@ -118,9 +121,9 @@ class TimeSeriesProcessor:
         start_time = current_time - pd.Timedelta(hours=hours)
 
         # Retrieve all previous rows that fall within the given time window
-        previous_rows = patient_data[
+        previous_rows = patient_data.loc[
             (patient_data['timestamp'] >= start_time) & (patient_data['timestamp'] < current_time)
-            ]
+            ].copy()
 
         return previous_rows
 
@@ -141,11 +144,12 @@ class TimeSeriesProcessor:
         # Initialize the row dictionary with the current row data
         row_dict = current_row.to_dict()
 
+        # Ensure timestamp column exists and convert to datetime
+        previous_rows.loc[:, 'timestamp'] = pd.to_datetime(previous_rows['timestamp'])
+        current_time = pd.to_datetime(current_row["timestamp"])
+
         # Ensure timestamp column exists and sort by timestamp descending
         previous_rows = previous_rows.sort_values(by="timestamp", ascending=False)
-
-        # Compute lagged values by grouping within each hour
-        current_time = current_row["timestamp"]
 
         for col in columns_to_lag:
             for lag in range(1, hours + 1):
