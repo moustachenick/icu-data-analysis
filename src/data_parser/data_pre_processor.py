@@ -12,7 +12,13 @@ class DataPreProcessor:
     def __init__(self, raw_data_file_path):
         self.raw_data_file_path = raw_data_file_path
 
-    def pre_process_dataset(self):
+    def pre_process_dataset(self, hours):
+        """
+        Preprocess the dataset and create lagged features.
+        :param hours: Number of hours to use for creating lag features.
+        :return: DataFrame with lagged features.
+        """
+
         lagged_file_path = os.path.abspath(
             os.path.join(os.path.dirname(__file__), "..", "..", "data", "cleaned_df_lagged.csv")
         )
@@ -33,7 +39,7 @@ class DataPreProcessor:
         df = self.delete_negative_icp_values(df)
 
         print("\n~~~~ STEP 2: Deleting patients with 2 rows or less ~~~~\n")
-        # Delete patients with 2 rows or less
+        # Delete patients with 2 rows or fewer
         df = df.groupby('patient_id').filter(lambda x: len(x) > 2)
 
         print("\n~~~~ STEP 3: Dropping the rows that have null \"ICP next\" column ~~~~\n")
@@ -57,7 +63,7 @@ class DataPreProcessor:
             df = self.known_nearest_neighbor_imputer(df)
 
         print("\n~~~~ STEP 8: Creating lagged features ~~~~\n")
-        df = self.create_lagged_features(df)
+        df = self.create_lagged_features(df, hours)
 
         print("\n~~~~ STEP 9: Deleting non-lagged columns (except the target one) ~~~~\n")
         # Drop all columns that do not have 'lag' in their name (except the target column 'icp')
@@ -227,14 +233,14 @@ class DataPreProcessor:
 
         return cleaned_df
 
-    def create_lagged_features(self, data):
+    def create_lagged_features(self, data, hours):
         """
         Preprocess the dataset and create lagged features.
+        :param data: DataFrame to process
+        :param hours: Number of hours to use for creating lag features
         """
 
         # Create lagged features
-        # Number of hours to use for creating lag features
-        hours = 5
         columns_to_lag = [
             "icp", "temperature", "mean_blood_pressure", "cpp", "glucose",
             "haemoglobin", "heart_rate", "paco2", "pao2", "peep", "ph", "spo2"

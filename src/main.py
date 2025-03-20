@@ -12,11 +12,12 @@ from data_parser.binary_data_processor import BinaryDataProcessor
 from helper.data_frame_printer import DataFramePrinter
 
 
-def main(mode):
+def main(mode, hours):
     """
     Main function to initialize and run the ICPPrediction pipeline.
     Args:
         mode (str): Mode of operation, either "regression" or "classification".
+        hours (int): Number of hours to use for creating lag features.
     """
     # Path for the raw data directory (icu-data-analysis/data)
     data_dir_path = os.path.abspath(
@@ -33,7 +34,7 @@ def main(mode):
     print("Running the Data Preprocessing pipeline...\n")
     data_pre_processor = DataPreProcessor(raw_data_file_path)
 
-    cleaned_df_lagged = data_pre_processor.pre_process_dataset()
+    cleaned_df_lagged = data_pre_processor.pre_process_dataset(hours)
 
     # Create train/test split and save the datasets
     print("\nCreating train/test split and saving datasets...")
@@ -184,6 +185,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run the ICP Prediction pipeline.")
     parser.add_argument("--mode", type=str, choices=["regression", "classification"],
                         help="Mode of operation: 'regression' or 'classification'")
+    parser.add_argument("--hours", type=int, default=5, help="Number of hours to use for creating lag features")
     args = parser.parse_args()
 
     if not args.mode:
@@ -199,4 +201,4 @@ if __name__ == "__main__":
             print("Invalid choice. Defaulting to regression.")
             args.mode = "regression"
 
-    main(args.mode)
+    main(args.mode, args.hours)
