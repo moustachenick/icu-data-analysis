@@ -101,11 +101,6 @@ class RegressionPredictor:
         print("\nLasso Regression Coefficients, ordered by importance:")
         print(lasso_coefficients.abs().sort_values(ascending=False))
 
-        # Identify important features from Lasso
-        important_features = lasso_coefficients.abs().sort_values(ascending=False).index.tolist()
-        print("\nImportant features selected by Lasso:")
-        print(important_features)
-
     def __evaluate_with_feature_configs(self, X_train, X_test, y_train, y_test):
         """
         Evaluate models with different feature configurations.
