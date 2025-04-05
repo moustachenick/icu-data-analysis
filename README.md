@@ -82,7 +82,7 @@ The algorithm will read all the files in the directory and parse the data into a
 The file names are hardcoded in the script, so make sure the files are named as above.
 If a file is missing, the program will raise a warning, but continue the execution.
 
-## How to run the main script
+## Running the main script
 
 After you have installed the dependencies and have the data files in the correct directory, you can run the script by
 running:
@@ -94,6 +94,75 @@ venv/Scripts/python src/main.py
 # Linux
 venv/bin/python src/main.py
 ```
+
+## User Inputs During Execution
+
+When running the main script, you will be prompted to make several decisions through user inputs that affect how the
+data is processed. Below is an explanation of each prompt:
+
+### Data Preprocessing Decisions
+
+1. **Dropping columns with high missing values**:
+
+```text
+Do you want to drop columns with more than 1 missing values? (y/n):
+
+- `y`: Removes the 'respiration_rate' column and any rows that have more than 1 column with missing values
+- `n`: Keeps all columns and rows, including those with multiple missing values
+```
+
+2. **Deleting ICP outliers**:
+
+```text
+Do you want to delete rows that have ICP outliers? (y/n):
+
+- `y`: Removes rows where ICP values are more than 7 standard deviations from the mean
+- `n`: Keeps all ICP values, including potential outliers
+```
+
+3. **Imputing missing values**:
+
+```text
+Do you want to impute missing values? (y/n):
+
+- `y`: Uses K-Nearest Neighbors imputation (with n_neighbors=1) to fill missing values
+- `n`: Keeps missing values as they are
+```
+
+4. **Handling null values in lagged columns**:
+
+```text
+Do you want to drop the rows with null values in lagged columns? (y/n):
+
+- `y`: Removes rows that have any null values in the lagged feature columns
+- `n`: Keeps rows with null values in lagged columns
+```
+
+After these steps, the lagged datasets will be created and saved to the `data/` directory.
+
+For Regression, it would be:
+
+```text
+data/train_data.csv
+
+data/test_data.csv
+```
+
+For Classification, it would be:
+
+```text
+data/train_data_classification.csv
+
+data/test_data_classification.csv
+```
+
+**Notice**: If you want the pre-precessing steps to run again, you should delete the `data/train_data.csv`,
+`data/test_data.csv`, `data/train_data_classification.csv`, `data/test_data_classification.csv`, `data/final_data.csv`,
+and `data/cleaned_df_lagged` files. The script will then prompt you again for the preprocessing steps.
+
+You can also do that by running the provided `clean_generated_files.sh` script, which will delete all the aforementioned
+generated
+files.
 
 ## Testing
 
