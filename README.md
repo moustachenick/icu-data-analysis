@@ -2,10 +2,7 @@
 
 ## About
 
-This is a project that reads ICU data files and generates a final `.csv` file with the data.
-It then creates a laggard dataset with the data from the previous day and calculates the difference between the two
-days.
-Then, it performs a regression analysis on the data and plots the results.
+This is a project that reads ICU data files, generates train/test datasets, and runs a Regression or Classification pipeline.
 
 ## How to use
 
