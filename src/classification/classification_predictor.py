@@ -1,9 +1,5 @@
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import confusion_matrix, classification_report
-from sklearn.model_selection import StratifiedKFold, cross_val_predict
-from sklearn.model_selection import cross_val_score
-import numpy as np
-
 import xgboost as xgb
 
 class ClassificationPredictor:
@@ -16,68 +12,90 @@ class ClassificationPredictor:
         """
         Run the pipeline to train and evaluate the model.
         Args:
-            X_train: Training features.
-            X_test: Testing features.
-            y_train: Training target variable.
-            y_test: Testing target variable.
+            X_train (pd.DataFrame): Training features.
+            X_test (pd.DataFrame): Testing features.
+            y_train (pd.Series): Training target variable.
+            y_test (pd.Series): Testing target variable.
         """
 
-        # Normalize the data before training
-        X_train = self.normalization(X_train)
-        X_test = self.normalization(X_test)
+        columns_to_exclude = ["patient_id", "date_of_birth", "timestamp"]
 
-
+        print("Dataframe before normalization:")
         print(X_train.head())
 
+        # Normalize the data before training
+        X_train_scaled, X_test_scaled = self._perform_normalization(X_train, X_test, columns_to_exclude)
+
+        X_train_final = X_train_scaled.drop(columns=columns_to_exclude, errors='ignore')
+        X_test_final = X_test_scaled.drop(columns=columns_to_exclude, errors='ignore')
+
         # Continue with training and evaluation
-        model = self.classification(X_train, X_test, y_train, y_test)
+        model = self.classification(X_train_final, X_test_final, y_train, y_test)
         return model
 
-    def normalization(self, data, exclude_columns=None):
+    def _perform_normalization(self, X_train, X_test, columns_to_exclude):
         """
-        Normalize the data using Min-Max scaling while excluding specified columns.
+        Performs MinMax scaling on the training and testing data.
 
         Args:
-            data (pd.DataFrame): The data to be normalized.
-            exclude_columns (list, optional): List of columns to exclude from normalization.
+            X_train (pd.DataFrame): Training features.
+            X_test (pd.DataFrame): Testing features.
+            columns_to_exclude (list): List of columns to exclude from scaling.
 
         Returns:
-            pd.DataFrame: The normalized data.
+            tuple: A tuple containing the scaled training DataFrame (pd.DataFrame)
+                   and the scaled testing DataFrame (pd.DataFrame).
         """
-        if exclude_columns is None:
-            exclude_columns = []
-        exclude_columns.extend(["icp_binary", "patient_id", "date_of_birth", "timestamp"]) #Exclude the target ICP column from normalization as it has binary values and we don't want them normalized  
-        
-        
-        columns_to_scale = [col for col in data.columns if col not in exclude_columns]
         scaler = MinMaxScaler()
-        data[columns_to_scale] = scaler.fit_transform(data[columns_to_scale])
 
-        print("Data successfully normalized.")
-        return data
+        columns_to_scale = [col for col in X_train.columns if col not in columns_to_exclude]
+
+        # Create copies to avoid modifying original dataframes
+        X_train_scaled = X_train.copy()
+        X_test_scaled = X_test.copy()
+
+        # Fit scaler on training data and transform both train and test
+        X_train_scaled[columns_to_scale] = scaler.fit_transform(X_train[columns_to_scale])
+        # for the test set, we only transform (without fitting)
+        X_test_scaled[columns_to_scale] = scaler.transform(X_test[columns_to_scale])
+
+        print("Training and testing data successfully normalized.")
+        print("Sample of normalized training data:")
+        print(X_train_scaled.head())
+
+        return X_train_scaled, X_test_scaled
     
     def classification(self, X_train, X_test, y_train, y_test):
-
+        """
+        Trains and evaluates the XGBoost classifier.
+        Args:
+            X_train: Normalized training features.
+            X_test: Normalized testing features.
+            y_train: Training target variable.
+            y_test: Testing target variable.
+        Returns:
+            xgb.XGBClassifier: The trained model.
+        """
         # Train XGBoost model
-        model = xgb.XGBClassifier()
+        # TODO tune the parameters for the XGBoost model according to [https://xgboost.readthedocs.io/en/latest/parameter.html]
+        model_params = {
+            'booster': 'gbtree',
+            'objective': 'binary:logistic',
+            'eval_metric': 'logloss'
+        }
+        model = xgb.XGBClassifier(**model_params)
         model.fit(X_train, y_train)
 
         # Make predictions
         y_pred = model.predict(X_test)
+
+        print("\n~~~~~~~~ XGBoost Predictor ~~~~~~~~\n")
 
         print("Confusion Matrix:")
         print(confusion_matrix(y_test, y_pred))
 
         print("Classification Report:")
         print(classification_report(y_test, y_pred))
-
-         # 10-Fold Cross-Validation on Training Set 
-        print("Performing 10-fold Cross Validation")
-
-        cv_scores = cross_val_score(model, X_train, y_train, cv=10, scoring="accuracy")
-
-        print("CV Scores:", cv_scores)
-        print("CV Mean Accuracy:", np.mean(cv_scores))
 
         return model
         

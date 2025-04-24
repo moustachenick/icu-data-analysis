@@ -4,6 +4,7 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from tabulate import tabulate
 
+from classification.baseline_predictor import BaselinePredictor
 from classification.classification_predictor import ClassificationPredictor
 from data_parser.data_parser import DataParser
 from data_parser.data_pre_processor import DataPreProcessor
@@ -107,6 +108,11 @@ def run_classification_pipeline(X_train, X_test, y_train, y_test, data_dir_path)
         X_test = test_data.drop(columns=["icp_binary"])
         y_test = test_data["icp_binary"]
         results = predictor.run_pipeline(X_train, X_test, y_train, y_test)
+
+        print("\n~~~~~~~~ Baseline Predictor ~~~~~~~~\n")
+        # Initialize and run also the BaselinePredictor
+        baseline_predictor = BaselinePredictor()
+        results_baseline = baseline_predictor.run_pipeline(X_test, y_test)
 
         if results is None:
             print("Error: No results returned from the Classification Predictor.")
