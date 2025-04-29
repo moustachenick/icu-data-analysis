@@ -81,7 +81,14 @@ class ClassificationPredictor:
         model_params = {
             'booster': 'gbtree',
             'objective': 'binary:logistic',
-            'eval_metric': 'logloss'
+            'eval_metric': 'logloss',
+            'max_depth': 6,
+            'learning_rate': 0.05,
+            'n_estimators': 200,
+            'scale_pos_weight': 6,
+            'subsample': 0.8,
+            'colsample_bytree': 0.8
+            
         }
         model = xgb.XGBClassifier(**model_params)
         model.fit(X_train, y_train)
