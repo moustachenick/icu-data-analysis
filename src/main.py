@@ -4,13 +4,15 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from tabulate import tabulate
 
-from classification.baseline_predictor import BaselinePredictor
-from classification.classification_predictor import ClassificationPredictor
+from classification.latest_icp_baseline_predictor import LatestICPBaselinePredictor
+from classification.lagged_icp_baseline_predictor import LaggedICPBaselinePredictor
+from classification.xgboost_classification_predictor import XGBoostClassificationPredictor
 from data_parser.data_parser import DataParser
 from data_parser.data_pre_processor import DataPreProcessor
 from regression.regression_predictor import RegressionPredictor
 from data_parser.binary_data_processor import BinaryDataProcessor
 from helper.data_frame_printer import DataFramePrinter
+from classification.classification_pipeline import ClassificationPipeline
 
 
 def main(mode, hours):
@@ -58,7 +60,9 @@ def main(mode, hours):
         y_test = pd.read_csv(test_data_path)["icp"]
 
     if mode == "classification":
-        run_classification_pipeline(X_train, X_test, y_train, y_test, data_dir_path)
+        if input("Do you want to continue with the Classification pipeline? (y/n): ").lower() == 'y':
+            pipeline = ClassificationPipeline(data_dir_path)
+            pipeline.run_pipeline(X_train, X_test, y_train, y_test)
     else:
         run_regression_pipeline(X_train, X_test, y_train, y_test)
 
@@ -85,43 +89,6 @@ def print_dataset_statistics(train_data, test_data):
 
     print("\nDataset Statistics:\n")
     print(tabulate(table, headers=headers, tablefmt="fancy_grid"))
-
-
-def run_classification_pipeline(X_train, X_test, y_train, y_test, data_dir_path):
-    train_data_classification_path = os.path.join(data_dir_path, "train_data_classification.csv")
-    test_data_classification_path = os.path.join(data_dir_path, "test_data_classification.csv")
-
-    if not os.path.exists(train_data_classification_path) or not os.path.exists(test_data_classification_path):
-        print("\nCreating classification datasets...")
-        binary_processor = BinaryDataProcessor()
-        train_data = pd.concat([X_train, y_train], axis=1)
-        test_data = pd.concat([X_test, y_test], axis=1)
-        train_data = binary_processor.create_binary_data(train_data)
-        test_data = binary_processor.create_binary_data(test_data)
-
-        train_data.to_csv(train_data_classification_path, index=False)
-        test_data.to_csv(test_data_classification_path, index=False)
-    else:
-        print("\nClassification datasets already exist. Skipping dataset creation.")
-        train_data = pd.read_csv(train_data_classification_path)
-        test_data = pd.read_csv(test_data_classification_path)
-
-    if input("Do you want to continue with the Classification pipeline? (y/n): ").lower() == 'y':
-        print("\nRunning the Classification pipeline...\n")
-        predictor = ClassificationPredictor()
-
-        X_train = train_data.drop(columns=["icp_binary"])
-        y_train = train_data["icp_binary"]
-        X_test = test_data.drop(columns=["icp_binary"])
-        y_test = test_data["icp_binary"]
-        results = predictor.run_pipeline(X_train, X_test, y_train, y_test)
-
-        print("\n~~~~~~~~ Baseline Predictor ~~~~~~~~\n")
-        baseline_predictor = BaselinePredictor()
-        baseline_predictor.run_pipeline(X_test, y_test)
-
-        if results is None:
-            print("Error: No results returned from the Classification Predictor.")
 
 
 def run_regression_pipeline(X_train, X_test, y_train, y_test):

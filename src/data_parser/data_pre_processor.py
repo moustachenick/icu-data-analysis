@@ -67,7 +67,7 @@ class DataPreProcessor:
 
         print("\n~~~~ STEP 9: Deleting non-lagged columns (except the target one) ~~~~\n")
         # Drop all columns that do not have 'lag' in their name (except the target column 'icp')
-        df = df.drop(columns=df.columns[~df.columns.str.contains('lag') & (df.columns != 'icp')])
+        # df = df.drop(columns=df.columns[~df.columns.str.contains('lag') & (df.columns != 'icp')])
 
         print("Preprocessing complete.")
         print(f"Number of rows in the cleaned dataset: {df.shape[0]}")

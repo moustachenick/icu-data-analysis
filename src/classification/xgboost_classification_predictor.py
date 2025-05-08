@@ -1,12 +1,21 @@
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import confusion_matrix, classification_report
 import xgboost as xgb
+import numpy as np
 
-class ClassificationPredictor:
+class XGBoostClassificationPredictor:
 
     """
     A class that uses the XGboost algorithm to predict abnormal Intracranial Pressure Values
     """
+
+    def _select_features(self, X):
+        """
+        Select only lagged features for XGBoost classification.
+        """
+        columns_to_exclude = ["patient_id", "date_of_birth", "timestamp"]
+        lagged_cols = [col for col in X.columns if 'lag' in col]
+        return X[lagged_cols + [col for col in columns_to_exclude if col in X.columns]]
 
     def run_pipeline(self, X_train, X_test, y_train, y_test):
         """
@@ -17,21 +26,14 @@ class ClassificationPredictor:
             y_train (pd.Series): Training target variable.
             y_test (pd.Series): Testing target variable.
         """
-
+        X_train = self._select_features(X_train)
+        X_test = self._select_features(X_test)
         columns_to_exclude = ["patient_id", "date_of_birth", "timestamp"]
-
-        print("Dataframe before normalization:")
-        print(X_train.head())
-
-        # Normalize the data before training
         X_train_scaled, X_test_scaled = self._perform_normalization(X_train, X_test, columns_to_exclude)
-
         X_train_final = X_train_scaled.drop(columns=columns_to_exclude, errors='ignore')
         X_test_final = X_test_scaled.drop(columns=columns_to_exclude, errors='ignore')
-
-        # Continue with training and evaluation
-        model = self.classification(X_train_final, X_test_final, y_train, y_test)
-        return model
+        results = self.classification(X_train_final, X_test_final, y_train, y_test)
+        return results
 
     def _perform_normalization(self, X_train, X_test, columns_to_exclude):
         """
@@ -59,10 +61,6 @@ class ClassificationPredictor:
         # for the test set, we only transform (without fitting)
         X_test_scaled[columns_to_scale] = scaler.transform(X_test[columns_to_scale])
 
-        print("Training and testing data successfully normalized.")
-        print("Sample of normalized training data:")
-        print(X_train_scaled.head())
-
         return X_train_scaled, X_test_scaled
     
     def classification(self, X_train, X_test, y_train, y_test):
@@ -74,10 +72,8 @@ class ClassificationPredictor:
             y_train: Training target variable.
             y_test: Testing target variable.
         Returns:
-            xgb.XGBClassifier: The trained model.
+            dict: A dictionary containing the results of the classification.
         """
-        # Train XGBoost model
-        # TODO tune the parameters for the XGBoost model according to [https://xgboost.readthedocs.io/en/latest/parameter.html]
         model_params = {
             'booster': 'gbtree',
             'objective': 'binary:logistic',
@@ -88,21 +84,15 @@ class ClassificationPredictor:
             'scale_pos_weight': 6,
             'subsample': 0.8,
             'colsample_bytree': 0.8
-            
         }
         model = xgb.XGBClassifier(**model_params)
         model.fit(X_train, y_train)
-
-        # Make predictions
         y_pred = model.predict(X_test)
-
-        print("\n~~~~~~~~ XGBoost Predictor ~~~~~~~~\n")
-
-        print("Confusion Matrix:")
-        print(confusion_matrix(y_test, y_pred))
-
-        print("Classification Report:")
-        print(classification_report(y_test, y_pred))
-
-        return model
+        return {
+            'name': 'XGBoostClassificationPredictor',
+            'confusion_matrix': confusion_matrix(y_test, y_pred),
+            'classification_report': classification_report(y_test, y_pred, output_dict=True, zero_division=0),
+            'y_true': np.array(y_test),
+            'y_pred': np.array(y_pred)
+        }
         
