@@ -1,18 +1,15 @@
-import os
 import argparse
+import os
+
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from tabulate import tabulate
 
-from classification.latest_icp_baseline_predictor import LatestICPBaselinePredictor
-from classification.lagged_icp_baseline_predictor import LaggedICPBaselinePredictor
-from classification.xgboost_classification_predictor import XGBoostClassificationPredictor
+from classification.classification_pipeline import ClassificationPipeline
 from data_parser.data_parser import DataParser
 from data_parser.data_pre_processor import DataPreProcessor
-from regression.regression_predictor import RegressionPredictor
-from data_parser.binary_data_processor import BinaryDataProcessor
 from helper.data_frame_printer import DataFramePrinter
-from classification.classification_pipeline import ClassificationPipeline
+from regression.regression_predictor import RegressionPredictor
 
 
 def main(mode, hours):
@@ -40,11 +37,21 @@ def main(mode, hours):
 
     if not os.path.exists(train_data_path) or not os.path.exists(test_data_path):
         print("\nCreating train/test split and saving datasets...")
-        train_size = 0.8
-        random_state = 42
-        X = cleaned_df_lagged.drop(columns=["icp"])
-        y = cleaned_df_lagged["icp"]
-        X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=train_size, random_state=random_state)
+        # Patient-level train/test split
+        unique_patients = cleaned_df_lagged["patient_id"].unique()
+        train_patients, test_patients = train_test_split(
+            unique_patients, train_size=0.8, random_state=42
+        )
+
+        # Filter rows by patient group
+        train_data = cleaned_df_lagged[cleaned_df_lagged["patient_id"].isin(train_patients)].copy()
+        test_data = cleaned_df_lagged[cleaned_df_lagged["patient_id"].isin(test_patients)].copy()
+
+        # Final X/y splits
+        X_train = train_data.drop(columns=["icp"])
+        y_train = train_data["icp"]
+        X_test = test_data.drop(columns=["icp"])
+        y_test = test_data["icp"]
 
         train_data = pd.concat([X_train, y_train], axis=1)
         test_data = pd.concat([X_test, y_test], axis=1)
@@ -60,9 +67,14 @@ def main(mode, hours):
         y_test = pd.read_csv(test_data_path)["icp"]
 
     if mode == "classification":
-        if input("Do you want to continue with the Classification pipeline? (y/n): ").lower() == 'y':
-            pipeline = ClassificationPipeline(data_dir_path)
-            pipeline.run_pipeline(X_train, X_test, y_train, y_test)
+        pipeline = ClassificationPipeline(data_dir_path)
+        pipeline.run_pipeline(X_train, X_test, y_train, y_test)
+        if input("Run also the 10-fold cross-validation? (y/n): ").lower() == 'y':
+            # Reconstruct full X and y from train/test parts,
+            # because the cross-validation pipeline expects the full dataset
+            X = pd.concat([X_train, X_test], axis=0).reset_index(drop=True)
+            y = pd.concat([y_train, y_test], axis=0).reset_index(drop=True)
+            pipeline.run_cross_validation_pipeline(X, y)
     else:
         run_regression_pipeline(X_train, X_test, y_train, y_test)
 

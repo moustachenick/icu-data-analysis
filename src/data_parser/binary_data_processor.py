@@ -2,6 +2,7 @@ import pandas as pd
 from pathlib import Path
 import os
 
+
 class BinaryDataProcessor:
     """
     A class to process intracranial pressure (ICP) data and convert it into binary format.
@@ -13,7 +14,7 @@ class BinaryDataProcessor:
 
         if self.data is None and self.file_path is not None:
             self.load_data()
- 
+
     def load_data(self):
         """
         Load the CSV data into a pandas DataFrame if a file path is provided.
@@ -35,8 +36,8 @@ class BinaryDataProcessor:
         self.data['icp_binary'] = self.data['icp'].apply(lambda x: 1 if x >= 22 else 0)
         # remove the original 'icp' column, since it is no longer needed
         self.data.drop(columns=['icp'], inplace=True)
-        print("Binary column 'icp_binary' created successfully.")
         return self.data
+
 
 # --- TEST SECTION ---
 if __name__ == "__main__":
@@ -58,7 +59,7 @@ if __name__ == "__main__":
 
     # (Optional) Save the updated DataFrame
     output_file = os.path.abspath(
-        os.path.join(os.path.dirname(__file__),"..", "..", "data", "cleaned_df_lagged_binary.csv")
+        os.path.join(os.path.dirname(__file__), "..", "..", "data", "cleaned_df_lagged_binary.csv")
     )
     processor.data.to_csv(output_file, index=False)
     print(f"Updated DataFrame saved to {output_file}")
