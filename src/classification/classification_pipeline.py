@@ -8,6 +8,8 @@ from helper.data_frame_printer import DataFramePrinter
 from sklearn.model_selection import StratifiedGroupKFold
 import numpy as np
 from tqdm import tqdm
+from statsmodels.stats.contingency_tables import mcnemar
+from tabulate import tabulate
 
 class ClassificationPipeline:
     def __init__(self, data_dir_path):
@@ -65,18 +67,32 @@ class ClassificationPipeline:
         summary_df = pd.DataFrame(summary)
         DataFramePrinter.print_dataframe_tabulated(summary_df, "Classification Models Comparison")
 
+        # Run McNemar Test
+        print("\n📊 Running McNemar's Test Between Models...\n")
+
+        res_lagged = results[0]
+        res_latest = results[1]
+        res_xgb = results[2]
+
+        p_xgb_vs_lagged = self.run_mcnemar(res_xgb['y_true'], res_xgb['y_pred'], res_lagged['y_pred'])
+        p_xgb_vs_latest = self.run_mcnemar(res_xgb['y_true'], res_xgb['y_pred'], res_latest['y_pred'])
+        p_latest_vs_lagged = self.run_mcnemar(res_latest['y_true'], res_latest['y_pred'], res_lagged['y_pred'])
+
+        print(tabulate([
+            ["XGBoost vs Lagged", f"{p_xgb_vs_lagged:.4f}", "✓" if p_xgb_vs_lagged < 0.05 else "✗"],
+            ["XGBoost vs Latest", f"{p_xgb_vs_latest:.4f}", "✓" if p_xgb_vs_latest < 0.05 else "✗"],
+            ["Latest vs Lagged", f"{p_latest_vs_lagged:.4f}", "✓" if p_latest_vs_lagged < 0.05 else "✗"]
+        ], headers=["Comparison", "p-value", "Significant?"], tablefmt="fancy_grid"))
+
     def run_cross_validation_pipeline(self, X, y, n_splits=10):
         print("\nRunning 10-fold cross-validation...\n")
 
-        # Preprocess once for binary classification
         binary_processor = BinaryDataProcessor()
         full_data = pd.concat([X, y], axis=1)
         full_data = binary_processor.create_binary_data(full_data)
 
-        # Create binary labels ONLY for stratification
         y_stratify = (y >= 22).astype(int)
 
-        # Prepare StratifiedKFold
         sgkf = StratifiedGroupKFold(n_splits=10, shuffle=True, random_state=42)
 
         predictors = {
@@ -89,25 +105,21 @@ class ClassificationPipeline:
         for fold, (train_idx, test_idx) in enumerate(
                 tqdm(sgkf.split(X, y_stratify, groups=patient_ids), total=n_splits, desc="Cross-validation folds"), 1):
 
-            # Get raw icp data
             X_train_raw = X.iloc[train_idx].copy()
             y_train_raw = y.iloc[train_idx].copy()
             X_test_raw = X.iloc[test_idx].copy()
             y_test_raw = y.iloc[test_idx].copy()
 
-            # --- Restore patient/time context ---
             X_train_raw["timestamp"] = X_train_raw["timestamp"]
             X_train_raw["patient_id"] = X_train_raw["patient_id"]
             X_test_raw["timestamp"] = X_test_raw["timestamp"]
             X_test_raw["patient_id"] = X_test_raw["patient_id"]
 
-            # === LaggedICPBaseline ===
             lagged = predictors["LaggedICPBaselinePredictor"]
-            lagged.fit(X_test_raw)  # Fit on test fold itself to compute per-day means
+            lagged.fit(X_test_raw)
             res = lagged.run_pipeline(X_test_raw, y_test_raw)
             fold_results["LaggedICPBaselinePredictor"].append(res["classification_report"])
 
-            # === Binary processing for LatestICP + XGBoost ===
             binary_processor = BinaryDataProcessor()
             train_bin = binary_processor.create_binary_data(pd.concat([X_train_raw, y_train_raw], axis=1))
             test_bin = binary_processor.create_binary_data(pd.concat([X_test_raw, y_test_raw], axis=1))
@@ -117,17 +129,14 @@ class ClassificationPipeline:
             X_test_bin = test_bin.drop(columns=["icp_binary"])
             y_test_bin = test_bin["icp_binary"]
 
-            # === LatestICPBaseline ===
             latest = predictors["LatestICPBaselinePredictor"]
             res = latest.run_pipeline(X_test_bin, y_test_bin)
             fold_results["LatestICPBaselinePredictor"].append(res["classification_report"])
 
-            # === XGBoost ===
             xgb = predictors["XGBoostClassificationPredictor"]
             res = xgb.run_pipeline(X_train_bin, X_test_bin, y_train_bin, y_test_bin)
             fold_results["XGBoostClassificationPredictor"].append(res["classification_report"])
 
-        # === Aggregate summary ===
         summary = []
         for name, reports in fold_results.items():
             f1s = [r['1']['f1-score'] for r in reports]
@@ -145,3 +154,12 @@ class ClassificationPipeline:
 
         summary_df = pd.DataFrame(summary)
         DataFramePrinter.print_dataframe_tabulated(summary_df, "10-Fold Cross-Validation Results (Mean ± Std Dev)")
+
+    def run_mcnemar(self, y_true, y_pred_a, y_pred_b):
+        print("▶️ Executing McNemar's test...")
+        b = np.sum((y_pred_a != y_true) & (y_pred_b == y_true))
+        c = np.sum((y_pred_a == y_true) & (y_pred_b != y_true))
+        table = [[0, b], [c, 0]]
+        result = mcnemar(table, exact=True)
+        return result.pvalue
+
