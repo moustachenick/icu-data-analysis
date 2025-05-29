@@ -128,7 +128,6 @@ class ClassificationPipeline:
 
             # === LaggedICPBaseline ===
             lagged = predictors["LaggedICPBaselinePredictor"]
-            lagged.fit(X_test_raw)  # Fit on test fold itself to compute per-day means
             res = lagged.run_pipeline(X_test_raw, y_test_raw)
             fold_results["LaggedICPBaselinePredictor"].append(res["classification_report"])
 
