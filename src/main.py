@@ -173,24 +173,3 @@ if __name__ == "__main__":
             args.mode = "regression"
 
     main(args.mode, args.hours)
-
-    parser = argparse.ArgumentParser(description="Run the ICP Prediction pipeline.")
-    parser.add_argument("--mode", type=str, choices=["regression", "classification"],
-                        help="Mode of operation: 'regression' or 'classification'")
-    parser.add_argument("--hours", type=int, default=5, help="Number of hours to use for creating lag features")
-    args = parser.parse_args()
-
-    if not args.mode:
-        print("Which mode would you like to run?")
-        print("1. Regression")
-        print("2. Classification")
-        choice = input("Enter the number of your choice: ").strip()
-        if choice == "1":
-            args.mode = "regression"
-        elif choice == "2":
-            args.mode = "classification"
-        else:
-            print("Invalid choice. Defaulting to regression.")
-            args.mode = "regression"
-
-    main(args.mode, args.hours)
