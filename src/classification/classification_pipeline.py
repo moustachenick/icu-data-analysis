@@ -38,7 +38,6 @@ class ClassificationPipeline:
 
         results = []
         daily_mean_predictor = LaggedICPBaselinePredictor()
-        daily_mean_predictor.fit(X_train)
         results.append(daily_mean_predictor.run_pipeline(X_test, y_test))
 
         X_train_bin = train_data.drop(columns=["icp_binary"])
@@ -66,14 +65,25 @@ class ClassificationPipeline:
         # Prepare a summary table
         summary = []
         for res in results:
+            print(f"{res['name']}:")
+            print(f"Positive class counts (true): {sum(res['y_true'])}")
+            print(f"Positive class counts (pred): {sum(res['y_pred'])}")
+            print(f"Accuracy: {res['classification_report']['accuracy']:.3f}")
+            print(f"Precision (1): {res['classification_report']['1']['precision']:.3f}")
+            print(f"Recall (1): {res['classification_report']['1']['recall']:.3f}")
+            print(f"F1-score (1): {res['classification_report']['1']['f1-score']:.3f}")
+            print("\n")
+
             report = res['classification_report']
+            class_1 = report.get('1', {'precision': 0.0, 'recall': 0.0, 'f1-score': 0.0})
             summary.append({
                 'Predictor': res['name'],
-                'Accuracy': f"{report['accuracy']:.3f}",
-                'Precision (1)': f"{report['1']['precision']:.3f}",
-                'Recall (1)': f"{report['1']['recall']:.3f}",
-                'F1-score (1)': f"{report['1']['f1-score']:.3f}"
+                'Accuracy': f"{report.get('accuracy', 0.0):.3f}",
+                'Precision (1)': f"{class_1['precision']:.3f}",
+                'Recall (1)': f"{class_1['recall']:.3f}",
+                'F1-score (1)': f"{class_1['f1-score']:.3f}"
             })
+
         summary_df = pd.DataFrame(summary)
         DataFramePrinter.print_dataframe_tabulated(summary_df, "Classification Models Comparison")
 
