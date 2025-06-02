@@ -8,6 +8,8 @@ from helper.data_frame_printer import DataFramePrinter
 from sklearn.model_selection import StratifiedGroupKFold
 import numpy as np
 from tqdm import tqdm
+from statsmodels.stats.contingency_tables import mcnemar
+from tabulate import tabulate
 
 
 class ClassificationPipeline:
@@ -55,11 +57,32 @@ class ClassificationPipeline:
         res_latest = results[1]
         res_xgb = results[2]
 
+        
+
+
         print("\n=== SHAPES OF MODEL OUTPUTS ===")
         print(f"LaggedICPBaselinePredictor:     y_true = {res_lagged['y_true'].shape}, y_pred = {res_lagged['y_pred'].shape}")
         print(f"LatestICPBaselinePredictor:     y_true = {res_latest['y_true'].shape}, y_pred = {res_latest['y_pred'].shape}")
         print(f"XGBoostClassificationPredictor: y_true = {res_xgb['y_true'].shape}, y_pred = {res_xgb['y_pred'].shape}")
         print("================================\n")
+
+        print("\n Running McNemar's Test Between Models...\n")
+
+        p_xgb_vs_lagged = self.run_mcnemar_test(res_xgb, res_lagged, label="XGBoost vs Lagged")
+        p_xgb_vs_latest = self.run_mcnemar_test(res_xgb, res_latest, label="XGBoost vs Latest")
+        p_latest_vs_lagged = self.run_mcnemar_test(res_latest, res_lagged, label="Latest vs Lagged")
+
+        
+        format_p = lambda p: "< 0.0000000001" if p < 1e-10 else f"{p:.10f}"
+
+        
+        print(tabulate([
+            ["XGBoost vs Lagged", format_p(p_xgb_vs_lagged), "✓" if p_xgb_vs_lagged < 0.05 else "✗"],
+            ["XGBoost vs Latest", format_p(p_xgb_vs_latest), "✓" if p_xgb_vs_latest < 0.05 else "✗"],
+            ["Latest vs Lagged", format_p(p_latest_vs_lagged), "✓" if p_latest_vs_lagged < 0.05 else "✗"]
+        ], headers=["Comparison", "p-value", "Significant?"], tablefmt="fancy_grid"))
+
+
 
 
         # Prepare a summary table
@@ -86,6 +109,34 @@ class ClassificationPipeline:
 
         summary_df = pd.DataFrame(summary)
         DataFramePrinter.print_dataframe_tabulated(summary_df, "Classification Models Comparison")
+
+    def run_mcnemar_test(self, model_a_result, model_b_result, label=""):
+        y_true = model_a_result['y_true']
+        y_pred_a = model_a_result['y_pred']
+        y_pred_b = model_b_result['y_pred']
+
+        b = np.sum((y_pred_a != y_true) & (y_pred_b == y_true))
+        c = np.sum((y_pred_a == y_true) & (y_pred_b != y_true))
+
+        print(f"\n🔍 McNemar Test: {label}")
+        print(f"   ➤ b (A wrong, B right): {b}")
+        print(f"   ➤ c (A right, B wrong): {c}")
+
+        if b + c == 0:
+            print("⚠️ McNemar's test not applicable (b + c = 0). Returning p = 1.0.")
+            return 1.0
+
+        table = [[0, b], [c, 0]]
+        result = mcnemar(table, exact=True)
+        p = result.pvalue
+
+        if p < 1e-10:
+            print(f"   ➤ p-value: < 0.0000000001")
+        else:
+            print(f"   ➤ p-value: {p:.10f}")  # 10 δεκαδικά ψηφία
+
+        return p
+
 
        
 
@@ -169,4 +220,6 @@ class ClassificationPipeline:
 
         summary_df = pd.DataFrame(summary)
         DataFramePrinter.print_dataframe_tabulated(summary_df, "10-Fold Cross-Validation Results (Mean ± Std Dev)")
+
+    
 
