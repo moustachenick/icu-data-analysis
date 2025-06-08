@@ -10,6 +10,8 @@ import numpy as np
 from tqdm import tqdm
 from statsmodels.stats.contingency_tables import mcnemar
 from tabulate import tabulate
+import matplotlib.pyplot as plt
+
 
 
 class ClassificationPipeline:
@@ -53,11 +55,10 @@ class ClassificationPipeline:
         predictor = XGBoostClassificationPredictor()
         results.append(predictor.run_pipeline(X_train_bin, X_test_bin, y_train_bin, y_test_bin))
 
+
         res_lagged = results[0]
         res_latest = results[1]
         res_xgb = results[2]
-
-        
 
 
         print("\n=== SHAPES OF MODEL OUTPUTS ===")
@@ -81,8 +82,6 @@ class ClassificationPipeline:
             ["XGBoost vs Latest", format_p(p_xgb_vs_latest), "✓" if p_xgb_vs_latest < 0.05 else "✗"],
             ["Latest vs Lagged", format_p(p_latest_vs_lagged), "✓" if p_latest_vs_lagged < 0.05 else "✗"]
         ], headers=["Comparison", "p-value", "Significant?"], tablefmt="fancy_grid"))
-
-
 
 
         # Prepare a summary table
@@ -109,6 +108,11 @@ class ClassificationPipeline:
 
         summary_df = pd.DataFrame(summary)
         DataFramePrinter.print_dataframe_tabulated(summary_df, "Classification Models Comparison")
+
+        # Plot feature importances
+        self.plot_xgboost_feature_importances(predictor.model)
+
+
 
     def run_mcnemar_test(self, model_a_result, model_b_result, label=""):
         y_true = model_a_result['y_true']
@@ -220,6 +224,27 @@ class ClassificationPipeline:
 
         summary_df = pd.DataFrame(summary)
         DataFramePrinter.print_dataframe_tabulated(summary_df, "10-Fold Cross-Validation Results (Mean ± Std Dev)")
+
+    def plot_xgboost_feature_importances(self, model, title="XGBoost Feature Importances"):
+        importances = model.get_booster().get_score(importance_type='gain')
+        importance_df = pd.DataFrame(importances.items(), columns=["Feature", "Importance"])
+        importance_df = importance_df.sort_values(by="Importance", ascending=False)
+
+        plt.figure(figsize=(12, 8))
+        bars = plt.barh(importance_df["Feature"], importance_df["Importance"])
+        plt.xlabel("Importance Score")
+        plt.ylabel("Feature")
+        plt.title(title)
+
+        for bar, score in zip(bars, importance_df["Importance"]):
+            plt.text(bar.get_width(), bar.get_y() + bar.get_height()/2,
+                    f'{score:.2f}', va='center', ha='left', fontsize=9)
+        plt.yticks(fontsize=8)
+        plt.gca().invert_yaxis()  
+        plt.tight_layout()
+        plt.savefig("xgboost_feature_importance.png", dpi=300)
+        print(" Saved clean feature importance plot as 'xgboost_feature_importance.png'")
+        plt.close()
 
     
 
