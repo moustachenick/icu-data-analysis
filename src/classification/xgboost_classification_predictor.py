@@ -9,6 +9,18 @@ class XGBoostClassificationPredictor:
     A class that uses the XGboost algorithm to predict abnormal Intracranial Pressure Values
     """
 
+    def __init__(self, model_params=None):
+        """
+        Initializes the XGBoostClassificationPredictor with optional model parameters.
+        
+        Args:
+            model_params (dict): Optional dictionary of parameters for the XGBoost model.
+        """
+        if model_params is None:
+            model_params = {}
+        self.model_params = model_params
+        self.model = None
+
     def _select_features(self, X):
         """Add commentMore actions
         Select only lagged features for XGBoost classification.
@@ -36,7 +48,6 @@ class XGBoostClassificationPredictor:
         X_test_final = X_test_scaled.drop(columns=columns_to_exclude, errors='ignore')
 
         results = self.classification(X_train_final, X_test_final, y_train, y_test)
-
 
         return results
 
@@ -78,26 +89,19 @@ class XGBoostClassificationPredictor:
         Returns:
             dict: A dictionary containing the results of the classification.
         """
-        model_params = {
-            'booster': 'gbtree',
-            'objective': 'binary:logistic',
-            'eval_metric': 'logloss',
-            'max_depth': 6,
-            'learning_rate': 0.05,
-            'n_estimators': 200,
-            'scale_pos_weight': 6,
-            'subsample': 0.8,
-            'colsample_bytree': 0.8
-        }
-        model = xgb.XGBClassifier(**model_params)
+        
+        # here we use the ** notation, so that each key-value pair in self.model_params
+        # is passed as a separate argument to the XGBClassifier constructor
+        if not isinstance(self.model_params, dict):
+            raise ValueError("model_params should be a dictionary of parameters for XGBoost.")
+        model = xgb.XGBClassifier(**self.model_params)
         model.fit(X_train, y_train)
         y_pred = model.predict(X_test)
 
         self.model = model
 
-
         return {
-            'name': 'XGBoostClassificationPredictor',
+            'name': 'XGBoostClassificationPredictor' if not self.model_params else f"XGBoostClassificationPredictor_with_params",
             'confusion_matrix': confusion_matrix(y_test, y_pred),
             'classification_report': classification_report(y_test, y_pred, output_dict=True, zero_division=0),
             'y_true': np.array(y_test),
