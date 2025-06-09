@@ -112,8 +112,6 @@ class ClassificationPipeline:
         # Plot feature importances
         self.plot_xgboost_feature_importances(predictor.model)
 
-
-
     def run_mcnemar_test(self, model_a_result, model_b_result, label=""):
         y_true = model_a_result['y_true']
         y_pred_a = model_a_result['y_pred']
@@ -140,10 +138,6 @@ class ClassificationPipeline:
             print(f"   ➤ p-value: {p:.10f}")  # 10 δεκαδικά ψηφία
 
         return p
-
-
-       
-
 
     def run_cross_validation_pipeline(self, X, y, n_splits=10):
         print("\nRunning 10-fold cross-validation...\n")
@@ -245,6 +239,3 @@ class ClassificationPipeline:
         plt.savefig("xgboost_feature_importance.png", dpi=300)
         print(" Saved clean feature importance plot as 'xgboost_feature_importance.png'")
         plt.close()
-
-    
-
