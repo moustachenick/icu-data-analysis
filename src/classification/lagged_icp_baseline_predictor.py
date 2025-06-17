@@ -19,7 +19,7 @@ class LaggedICPBaselinePredictor:
         max_lag (int): The number of lagged ICP features to include (starting from icp_lag_1).
     """
 
-    def __init__(self, decision_threshold=16, max_lag=5):
+    def __init__(self, decision_threshold=15, max_lag=5):
         """
         Initialize the baseline predictor.
 

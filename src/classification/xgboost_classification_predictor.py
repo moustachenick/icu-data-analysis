@@ -9,17 +9,27 @@ class XGBoostClassificationPredictor:
     A class that uses the XGboost algorithm to predict abnormal Intracranial Pressure Values
     """
 
-    def __init__(self, model_params=None):
+    def __init__(self, model_params=None, feature_selector=None):
         """
-        Initializes the XGBoostClassificationPredictor with optional model parameters.
-        
+        Initializes the XGBoostClassificationPredictor with optional model parameters and feature selector.
         Args:
             model_params (dict): Optional dictionary of parameters for the XGBoost model.
+            feature_selector (callable): Optional function to select features from the input DataFrame.
         """
         if model_params is None:
             model_params = {}
         self.model_params = model_params
         self.model = None
+        self.feature_selector = feature_selector if feature_selector is not None else self._select_features
+
+    @staticmethod
+    def lag_only_feature_selector(X):
+        """
+        Select only icp_lag_* features (and optionally patient_id, timestamp if present).
+        """
+        columns_to_exclude = ["patient_id", "date_of_birth", "timestamp"]
+        lagged_cols = [col for col in X.columns if col.startswith('icp_lag_')]
+        return X[lagged_cols + [col for col in columns_to_exclude if col in X.columns]]
 
     def _select_features(self, X):
         """Add commentMore actions
@@ -38,8 +48,8 @@ class XGBoostClassificationPredictor:
             y_train (pd.Series): Training target variable.
             y_test (pd.Series): Testing target variable.
         """
-        X_train = self._select_features(X_train)
-        X_test = self._select_features(X_test)
+        X_train = self.feature_selector(X_train)
+        X_test = self.feature_selector(X_test)
 
         columns_to_exclude = ["patient_id", "date_of_birth", "timestamp"]
         X_train_scaled, X_test_scaled = self._perform_normalization(X_train, X_test, columns_to_exclude)
@@ -79,7 +89,7 @@ class XGBoostClassificationPredictor:
         return X_train_scaled, X_test_scaled
 
     def classification(self, X_train, X_test, y_train, y_test):
-        """Add commentMore actions
+        """
         Trains and evaluates the XGBoost classifier.
         Args:
             X_train: Normalized training features.
@@ -100,8 +110,20 @@ class XGBoostClassificationPredictor:
 
         self.model = model
 
+        # Determine the correct name
+        is_default_params = (not self.model_params or self.model_params == {})
+        is_lagonly = self.feature_selector == self.lag_only_feature_selector
+        if is_lagonly and is_default_params:
+            name = 'XGBoostClassificationPredictor_lagonly'
+        elif is_lagonly and not is_default_params:
+            name = 'XGBoostClassificationPredictor_lagonly_with_params'
+        elif not is_lagonly and not is_default_params:
+            name = 'XGBoostClassificationPredictor_with_params'
+        else:
+            name = 'XGBoostClassificationPredictor'
+
         return {
-            'name': 'XGBoostClassificationPredictor' if not self.model_params else f"XGBoostClassificationPredictor_with_params",
+            'name': name,
             'confusion_matrix': confusion_matrix(y_test, y_pred),
             'classification_report': classification_report(y_test, y_pred, output_dict=True, zero_division=0),
             'y_true': np.array(y_test),

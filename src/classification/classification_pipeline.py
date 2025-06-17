@@ -76,6 +76,20 @@ class ClassificationPipeline:
 
         xg_boost_predictor = XGBoostClassificationPredictor(model_params=self.xg_boost_model_params)
         results.append(xg_boost_predictor.run_pipeline(X_train_bin, X_test_bin, y_train_bin, y_test_bin))
+
+        # XGBoost with only icp_lag_* features (default params)
+        xgb_lagonly = XGBoostClassificationPredictor(
+            feature_selector=XGBoostClassificationPredictor.lag_only_feature_selector
+        )
+        results.append(xgb_lagonly.run_pipeline(X_train_bin, X_test_bin, y_train_bin, y_test_bin))
+
+        # XGBoost with only icp_lag_* features (custom params)
+        xgb_lagonly_params = XGBoostClassificationPredictor(
+            model_params=self.xg_boost_model_params,
+            feature_selector=XGBoostClassificationPredictor.lag_only_feature_selector
+        )
+        results.append(xgb_lagonly_params.run_pipeline(X_train_bin, X_test_bin, y_train_bin, y_test_bin))
+
         print("\n=== CLASSIFICATION RESULTS ===")
         print(f"Number of test samples: {len(X_test)}")
         print(f"Number of positive samples (icp >= 22): {sum(y_test >= 22)}")
@@ -86,12 +100,16 @@ class ClassificationPipeline:
         res_latest = results[1]
         res_xgb_no_params = results[2]
         res_xgb_with_params = results[3]
+        res_xgb_lagonly = results[4]
+        res_xgb_lagonly_params = results[5]
 
         print("\n=== SHAPES OF MODEL OUTPUTS ===")
         print(f"LaggedICPBaselinePredictor:     y_true = {res_lagged['y_true'].shape}, y_pred = {res_lagged['y_pred'].shape}")
         print(f"LatestICPBaselinePredictor:     y_true = {res_latest['y_true'].shape}, y_pred = {res_latest['y_pred'].shape}")
         print(f"XGBoostClassificationPredictor: y_true = {res_xgb_no_params['y_true'].shape}, y_pred = {res_xgb_no_params['y_pred'].shape}")
         print(f"XGBoostClassificationPredictor (with params): y_true = {res_xgb_with_params['y_true'].shape}, y_pred = {res_xgb_with_params['y_pred'].shape}")
+        print(f"XGBoostClassificationPredictor (lag only): y_true = {res_xgb_lagonly['y_true'].shape}, y_pred = {res_xgb_lagonly['y_pred'].shape}")
+        print(f"XGBoostClassificationPredictor (lag only, with params): y_true = {res_xgb_lagonly_params['y_true'].shape}, y_pred = {res_xgb_lagonly_params['y_pred'].shape}")
         print("================================\n")
 
         print("\n Running McNemar's Test Between Models...\n")
@@ -136,6 +154,8 @@ class ClassificationPipeline:
 
         # Plot feature importances
         self.plot_xgboost_feature_importances(xg_boost_predictor.model)
+        self.plot_xgboost_feature_importances(xgb_lagonly.model, title="XGBoost Feature Importances (Lag Only)")
+        self.plot_xgboost_feature_importances(xgb_lagonly_params.model, title="XGBoost Feature Importances (Lag Only, With Params)")
 
     def run_mcnemar_test(self, model_a_result, model_b_result, label=""):
         y_true = model_a_result['y_true']
@@ -182,7 +202,9 @@ class ClassificationPipeline:
             "LaggedICPBaselinePredictor": LaggedICPBaselinePredictor(),
             "LatestICPBaselinePredictor": LatestICPBaselinePredictor(),
             "XGBoostClassificationPredictor": XGBoostClassificationPredictor(),
-            "XGBoostClassificationPredictor_with_params": XGBoostClassificationPredictor(model_params=self.xg_boost_model_params)
+            "XGBoostClassificationPredictor_with_params": XGBoostClassificationPredictor(model_params=self.xg_boost_model_params),
+            "XGBoostClassificationPredictor_lagonly": XGBoostClassificationPredictor(feature_selector=XGBoostClassificationPredictor.lag_only_feature_selector),
+            "XGBoostClassificationPredictor_lagonly_with_params": XGBoostClassificationPredictor(model_params=self.xg_boost_model_params, feature_selector=XGBoostClassificationPredictor.lag_only_feature_selector)
         }
         fold_results = {name: [] for name in predictors}
         patient_ids = X["patient_id"]
@@ -230,6 +252,16 @@ class ClassificationPipeline:
             xgb_with_params = predictors["XGBoostClassificationPredictor_with_params"]
             res_with_params = xgb_with_params.run_pipeline(X_train_bin, X_test_bin, y_train_bin, y_test_bin)
             fold_results["XGBoostClassificationPredictor_with_params"].append(res_with_params["classification_report"])
+
+            # === XGBoost with only icp_lag_* features (default params)
+            xgb_lagonly = predictors["XGBoostClassificationPredictor_lagonly"]
+            res_lagonly = xgb_lagonly.run_pipeline(X_train_bin, X_test_bin, y_train_bin, y_test_bin)
+            fold_results["XGBoostClassificationPredictor_lagonly"].append(res_lagonly["classification_report"])
+
+            # === XGBoost with only icp_lag_* features (custom params)
+            xgb_lagonly_params = predictors["XGBoostClassificationPredictor_lagonly_with_params"]
+            res_lagonly_params = xgb_lagonly_params.run_pipeline(X_train_bin, X_test_bin, y_train_bin, y_test_bin)
+            fold_results["XGBoostClassificationPredictor_lagonly_with_params"].append(res_lagonly_params["classification_report"])
 
         # === Aggregate summary ===
         summary = []

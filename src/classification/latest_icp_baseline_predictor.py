@@ -5,10 +5,10 @@ import pandas as pd
 class LatestICPBaselinePredictor:
     """
     Real-life like baseline predictor using the latest ICP value (icp_lag_1).
-    If icp_lag_1 exceeds a specified threshold (e.g. 16 or 18), predict abnormal (1), else normal (0).
+    If icp_lag_1 exceeds a specified threshold (e.g. 15 or 18), predict abnormal (1), else normal (0).
     """
 
-    def __init__(self, icp_lag_col="icp_lag_1", decision_threshold=16):
+    def __init__(self, icp_lag_col="icp_lag_1", decision_threshold=15):
         """
         Args:
             icp_lag_col (str): The lag column to use (typically 'icp_lag_1').
