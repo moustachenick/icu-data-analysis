@@ -15,6 +15,25 @@ import matplotlib.pyplot as plt
 
 
 class ClassificationPipeline:
+    """
+    A class that orchestrates the classification pipeline for predicting abnormal Intracranial Pressure (ICP) values.
+    It includes preparation of datasets, running baseline predictors, and XGBoost classification.
+    It also performs McNemar's test to compare the performance of different models.
+    """
+
+    # Default XGBoost model parameters
+    xg_boost_model_params = {
+            'booster': 'gbtree',
+            'objective': 'binary:logistic',
+            'eval_metric': 'logloss',
+            'max_depth': 6,
+            'learning_rate': 0.05,
+            'n_estimators': 200,
+            'scale_pos_weight': 6,
+            'subsample': 0.8,
+            'colsample_bytree': 0.8
+        }
+
     def __init__(self, data_dir_path):
         self.data_dir_path = data_dir_path
         self.train_data_classification_path = os.path.join(data_dir_path, "train_data_classification.csv")
@@ -52,31 +71,55 @@ class ClassificationPipeline:
         baseline_predictor = LatestICPBaselinePredictor()
         results.append(baseline_predictor.run_pipeline(X_test_bin, y_test_bin))
 
-        predictor = XGBoostClassificationPredictor()
-        results.append(predictor.run_pipeline(X_train_bin, X_test_bin, y_train_bin, y_test_bin))
+        xg_boost_predictor_no_params = XGBoostClassificationPredictor()
+        results.append(xg_boost_predictor_no_params.run_pipeline(X_train_bin, X_test_bin, y_train_bin, y_test_bin))
 
+        xg_boost_predictor = XGBoostClassificationPredictor(model_params=self.xg_boost_model_params)
+        results.append(xg_boost_predictor.run_pipeline(X_train_bin, X_test_bin, y_train_bin, y_test_bin))
+
+        # XGBoost with only icp_lag_* features (default params)
+        xgb_lagonly = XGBoostClassificationPredictor(
+            feature_selector=XGBoostClassificationPredictor.lag_only_feature_selector
+        )
+        results.append(xgb_lagonly.run_pipeline(X_train_bin, X_test_bin, y_train_bin, y_test_bin))
+
+        # XGBoost with only icp_lag_* features (custom params)
+        xgb_lagonly_params = XGBoostClassificationPredictor(
+            model_params=self.xg_boost_model_params,
+            feature_selector=XGBoostClassificationPredictor.lag_only_feature_selector
+        )
+        results.append(xgb_lagonly_params.run_pipeline(X_train_bin, X_test_bin, y_train_bin, y_test_bin))
+
+        print("\n=== CLASSIFICATION RESULTS ===")
+        print(f"Number of test samples: {len(X_test)}")
+        print(f"Number of positive samples (icp >= 22): {sum(y_test >= 22)}")
+        print(f"Number of negative samples (icp < 22): {sum(y_test < 22)}")
+        print("================================\n")
 
         res_lagged = results[0]
         res_latest = results[1]
-        res_xgb = results[2]
-
+        res_xgb_no_params = results[2]
+        res_xgb_with_params = results[3]
+        res_xgb_lagonly = results[4]
+        res_xgb_lagonly_params = results[5]
 
         print("\n=== SHAPES OF MODEL OUTPUTS ===")
         print(f"LaggedICPBaselinePredictor:     y_true = {res_lagged['y_true'].shape}, y_pred = {res_lagged['y_pred'].shape}")
         print(f"LatestICPBaselinePredictor:     y_true = {res_latest['y_true'].shape}, y_pred = {res_latest['y_pred'].shape}")
-        print(f"XGBoostClassificationPredictor: y_true = {res_xgb['y_true'].shape}, y_pred = {res_xgb['y_pred'].shape}")
+        print(f"XGBoostClassificationPredictor: y_true = {res_xgb_no_params['y_true'].shape}, y_pred = {res_xgb_no_params['y_pred'].shape}")
+        print(f"XGBoostClassificationPredictor (with params): y_true = {res_xgb_with_params['y_true'].shape}, y_pred = {res_xgb_with_params['y_pred'].shape}")
+        print(f"XGBoostClassificationPredictor (lag only): y_true = {res_xgb_lagonly['y_true'].shape}, y_pred = {res_xgb_lagonly['y_pred'].shape}")
+        print(f"XGBoostClassificationPredictor (lag only, with params): y_true = {res_xgb_lagonly_params['y_true'].shape}, y_pred = {res_xgb_lagonly_params['y_pred'].shape}")
         print("================================\n")
 
         print("\n Running McNemar's Test Between Models...\n")
 
-        p_xgb_vs_lagged = self.run_mcnemar_test(res_xgb, res_lagged, label="XGBoost vs Lagged")
-        p_xgb_vs_latest = self.run_mcnemar_test(res_xgb, res_latest, label="XGBoost vs Latest")
+        p_xgb_vs_lagged = self.run_mcnemar_test(res_xgb_no_params, res_lagged, label="XGBoost vs Lagged")
+        p_xgb_vs_latest = self.run_mcnemar_test(res_xgb_no_params, res_latest, label="XGBoost vs Latest")
         p_latest_vs_lagged = self.run_mcnemar_test(res_latest, res_lagged, label="Latest vs Lagged")
 
-        
         format_p = lambda p: "< 0.0000000001" if p < 1e-10 else f"{p:.10f}"
 
-        
         print(tabulate([
             ["XGBoost vs Lagged", format_p(p_xgb_vs_lagged), "✓" if p_xgb_vs_lagged < 0.05 else "✗"],
             ["XGBoost vs Latest", format_p(p_xgb_vs_latest), "✓" if p_xgb_vs_latest < 0.05 else "✗"],
@@ -110,9 +153,9 @@ class ClassificationPipeline:
         DataFramePrinter.print_dataframe_tabulated(summary_df, "Classification Models Comparison")
 
         # Plot feature importances
-        self.plot_xgboost_feature_importances(predictor.model)
-
-
+        self.plot_xgboost_feature_importances(xg_boost_predictor.model)
+        self.plot_xgboost_feature_importances(xgb_lagonly.model, title="XGBoost Feature Importances (Lag Only)")
+        self.plot_xgboost_feature_importances(xgb_lagonly_params.model, title="XGBoost Feature Importances (Lag Only, With Params)")
 
     def run_mcnemar_test(self, model_a_result, model_b_result, label=""):
         y_true = model_a_result['y_true']
@@ -159,7 +202,10 @@ class ClassificationPipeline:
         predictors = {
             "LaggedICPBaselinePredictor": LaggedICPBaselinePredictor(),
             "LatestICPBaselinePredictor": LatestICPBaselinePredictor(),
-            "XGBoostClassificationPredictor": XGBoostClassificationPredictor()
+            "XGBoostClassificationPredictor": XGBoostClassificationPredictor(),
+            "XGBoostClassificationPredictor_with_params": XGBoostClassificationPredictor(model_params=self.xg_boost_model_params),
+            "XGBoostClassificationPredictor_lagonly": XGBoostClassificationPredictor(feature_selector=XGBoostClassificationPredictor.lag_only_feature_selector),
+            "XGBoostClassificationPredictor_lagonly_with_params": XGBoostClassificationPredictor(model_params=self.xg_boost_model_params, feature_selector=XGBoostClassificationPredictor.lag_only_feature_selector)
         }
         fold_results = {name: [] for name in predictors}
         patient_ids = X["patient_id"]
@@ -203,6 +249,21 @@ class ClassificationPipeline:
             res = xgb.run_pipeline(X_train_bin, X_test_bin, y_train_bin, y_test_bin)
             fold_results["XGBoostClassificationPredictor"].append(res["classification_report"])
 
+            # === XGBoost with params ===
+            xgb_with_params = predictors["XGBoostClassificationPredictor_with_params"]
+            res_with_params = xgb_with_params.run_pipeline(X_train_bin, X_test_bin, y_train_bin, y_test_bin)
+            fold_results["XGBoostClassificationPredictor_with_params"].append(res_with_params["classification_report"])
+
+            # === XGBoost with only icp_lag_* features (default params)
+            xgb_lagonly = predictors["XGBoostClassificationPredictor_lagonly"]
+            res_lagonly = xgb_lagonly.run_pipeline(X_train_bin, X_test_bin, y_train_bin, y_test_bin)
+            fold_results["XGBoostClassificationPredictor_lagonly"].append(res_lagonly["classification_report"])
+
+            # === XGBoost with only icp_lag_* features (custom params)
+            xgb_lagonly_params = predictors["XGBoostClassificationPredictor_lagonly_with_params"]
+            res_lagonly_params = xgb_lagonly_params.run_pipeline(X_train_bin, X_test_bin, y_train_bin, y_test_bin)
+            fold_results["XGBoostClassificationPredictor_lagonly_with_params"].append(res_lagonly_params["classification_report"])
+
         # === Aggregate summary ===
         summary = []
         for name, reports in fold_results.items():
@@ -242,6 +303,3 @@ class ClassificationPipeline:
         plt.savefig("xgboost_feature_importance.png", dpi=300)
         print(" Saved clean feature importance plot as 'xgboost_feature_importance.png'")
         plt.close()
-
-    
-
