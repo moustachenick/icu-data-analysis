@@ -142,9 +142,6 @@ class ClassificationPipeline:
         return p
 
 
-       
-
-
     def run_cross_validation_pipeline(self, X, y, n_splits=10):
         print("\nRunning 10-fold cross-validation...\n")
 
