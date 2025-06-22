@@ -127,7 +127,7 @@ class ClassificationPipeline:
         print(f"   ➤ c (A right, B wrong): {c}")
 
         if b + c == 0:
-            print("⚠️ McNemar's test not applicable (b + c = 0). Returning p = 1.0.")
+            print("McNemar's test not applicable (b + c = 0). Returning p = 1.0.")
             return 1.0
 
         table = [[0, b], [c, 0]]
