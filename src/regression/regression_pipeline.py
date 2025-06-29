@@ -9,15 +9,29 @@ from sklearn.preprocessing import StandardScaler
 from helper.data_frame_printer import DataFramePrinter
 
 
-class RegressionPredictor:
+class RegressionPipeline:
     def __init__(self):
         """
         Initialize the ICPPrediction class.
         """
         self.models = {
-            "Linear Regression": LinearRegression(),
-            "Ridge Regression": Ridge(),
-            "Lasso Regression": Lasso(alpha=0.1),
+            "Linear Regression": {
+                "model": LinearRegression(),
+                "column_selector": lambda X: X.select_dtypes(include=[np.number])
+            },
+            "Ridge Regression": {
+                "model": Ridge(),
+                "column_selector": lambda X: X.select_dtypes(include=[np.number])
+            },
+            "Lasso Regression": {
+                "model": Lasso(alpha=0.1),
+                "column_selector": lambda X: X.select_dtypes(include=[np.number])
+            },
+            # Example for a custom model that uses all columns (including non-numeric):
+            # "Custom Baseline": {
+            #     "model": MyCustomModel(),
+            #     "column_selector": lambda X: X
+            # },
         }
         self.scaler = None  # Initialize the scaler
 
@@ -30,12 +44,12 @@ class RegressionPredictor:
             X_train: Training features.
             y_train: Training target variable.
         """
-        # Fit the scaler on training data
-        self.scaler = StandardScaler()
-        X_train_scaled = self.scaler.fit_transform(X_train)
-
-        for name, model in self.models.items():
-            model.fit(X_train_scaled, y_train)
+        for name, model_info in self.models.items():
+            X_train_selected = model_info["column_selector"](X_train)
+            # Fit the scaler on training data (numeric only)
+            self.scaler = StandardScaler()
+            X_train_scaled = self.scaler.fit_transform(X_train_selected)
+            model_info["model"].fit(X_train_scaled, y_train)
             print(f"{name} model trained successfully.")
 
     def __evaluate_models(self, X_test, y_test):
@@ -53,15 +67,14 @@ class RegressionPredictor:
         if self.scaler is None:
             raise ValueError("Scaler not fitted. Ensure you call train_models() before evaluate_models().")
 
-        # Scale the test data using the fitted scaler
-        X_test_scaled = self.scaler.transform(X_test)
         metrics = {"Model": [], "MSE": [], "MAE": [], "RMSE": [], "Accuracy (%)": []}
 
-        for name, model in self.models.items():
+        for name, model_info in self.models.items():
             print(f"\nEvaluating {name}...")
-
-            predictions = model.predict(X_test_scaled)
-            accuracy = model.score(X_test_scaled, y_test) * 100
+            X_test_selected = model_info["column_selector"](X_test)
+            X_test_scaled = self.scaler.transform(X_test_selected)
+            predictions = model_info["model"].predict(X_test_scaled)
+            accuracy = model_info["model"].score(X_test_scaled, y_test) * 100
 
             mse = mean_squared_error(y_test, predictions)
             mae = mean_absolute_error(y_test, predictions)
@@ -85,19 +98,21 @@ class RegressionPredictor:
             X_train: Training features.
             y_train: Training target variable.
         """
-        X_train_scaled = self.scaler.fit_transform(X_train)
-
         # Linear Regression Coefficients
-        linear_model = self.models["Linear Regression"]
-        linear_model.fit(X_train_scaled, y_train)
-        linear_coefficients = pd.Series(linear_model.coef_, index=X_train.columns)
+        linear_model_info = self.models["Linear Regression"]
+        X_train_linear = linear_model_info["column_selector"](X_train)
+        X_train_scaled = self.scaler.fit_transform(X_train_linear)
+        linear_model_info["model"].fit(X_train_scaled, y_train)
+        linear_coefficients = pd.Series(linear_model_info["model"].coef_, index=X_train_linear.columns)
         print("\nLinear Regression Coefficients, ordered by importance:")
         print(linear_coefficients.abs().sort_values(ascending=False))
 
         # Lasso Regression Coefficients
-        lasso_model = self.models["Lasso Regression"]
-        lasso_model.fit(X_train_scaled, y_train)
-        lasso_coefficients = pd.Series(lasso_model.coef_, index=X_train.columns)
+        lasso_model_info = self.models["Lasso Regression"]
+        X_train_lasso = lasso_model_info["column_selector"](X_train)
+        X_train_scaled_lasso = self.scaler.fit_transform(X_train_lasso)
+        lasso_model_info["model"].fit(X_train_scaled_lasso, y_train)
+        lasso_coefficients = pd.Series(lasso_model_info["model"].coef_, index=X_train_lasso.columns)
         print("\nLasso Regression Coefficients, ordered by importance:")
         print(lasso_coefficients.abs().sort_values(ascending=False))
 
@@ -144,17 +159,17 @@ class RegressionPredictor:
             X_train_config = X_train[columns]
             X_test_config = X_test[columns]
 
-            # Scale the features
-            if self.scaler is None:
-                self.scaler = StandardScaler()
-            X_train_scaled = self.scaler.fit_transform(X_train_config)
-            X_test_scaled = self.scaler.transform(X_test_config)
-
             # Collect RMSE for all models
             rmse_values = []
-            for name, model in self.models.items():
-                model.fit(X_train_scaled, y_train)
-                predictions = model.predict(X_test_scaled)
+            for name, model_info in self.models.items():
+                X_train_selected = model_info["column_selector"](X_train_config)
+                X_test_selected = model_info["column_selector"](X_test_config)
+                # Scale the features
+                self.scaler = StandardScaler()
+                X_train_scaled = self.scaler.fit_transform(X_train_selected)
+                X_test_scaled = self.scaler.transform(X_test_selected)
+                model_info["model"].fit(X_train_scaled, y_train)
+                predictions = model_info["model"].predict(X_test_scaled)
                 rmse = np.sqrt(mean_squared_error(y_test, predictions))
                 rmse_values.append(rmse)
 
@@ -177,15 +192,14 @@ class RegressionPredictor:
         Returns:
             cv_results_df: DataFrame containing cross-validation MSE for all models.
         """
-        if self.scaler is None:
-            self.scaler = StandardScaler()
-        X_scaled = self.scaler.fit_transform(X)
-
         cv_results = {"Model": [], "Mean CV MSE": []}
-        kf = KFold(n_splits=cv_folds, shuffle=True, random_state=42)
 
-        for name, model in self.models.items():
-            scores = cross_val_score(model, X_scaled, y, cv=kf, scoring="neg_mean_squared_error")
+        for name, model_info in self.models.items():
+            X_selected = model_info["column_selector"](X)
+            self.scaler = StandardScaler()
+            X_scaled = self.scaler.fit_transform(X_selected)
+            kf = KFold(n_splits=cv_folds, shuffle=True, random_state=42)
+            scores = cross_val_score(model_info["model"], X_scaled, y, cv=kf, scoring="neg_mean_squared_error")
             mean_mse = -scores.mean()
             cv_results["Model"].append(name)
             cv_results["Mean CV MSE"].append(mean_mse)

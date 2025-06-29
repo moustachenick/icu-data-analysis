@@ -3,25 +3,13 @@ import os
 
 import pandas as pd
 from sklearn.model_selection import train_test_split
-from tabulate import tabulate
 
 from classification.classification_pipeline import ClassificationPipeline
 from data_parser.data_parser import DataParser
 from data_parser.data_pre_processor import DataPreProcessor
 from helper.data_frame_printer import DataFramePrinter
-from regression.regression_predictor import RegressionPredictor
-import argparse
-import os
-
-import pandas as pd
-from sklearn.model_selection import train_test_split
 from tabulate import tabulate
-
-from classification.classification_pipeline import ClassificationPipeline
-from data_parser.data_parser import DataParser
-from data_parser.data_pre_processor import DataPreProcessor
-from helper.data_frame_printer import DataFramePrinter
-from regression.regression_predictor import RegressionPredictor
+from regression.regression_pipeline import RegressionPipeline
 
 
 def main(mode, hours):
@@ -117,8 +105,8 @@ def print_dataset_statistics(train_data, test_data):
 
 def run_regression_pipeline(X_train, X_test, y_train, y_test):
     if input("Do you want to continue with the Regression pipeline? (y/n): ").lower() == 'y':
-        predictor = RegressionPredictor()
-        results = predictor.run_pipeline(X_train, X_test, y_train, y_test)
+        pipeline = RegressionPipeline()
+        results = pipeline.run_pipeline(X_train, X_test, y_train, y_test)
 
         DataFramePrinter.print_dataframe_tabulated(results["evaluation_results"], "Regression Predictions Results")
         DataFramePrinter.print_dataframe_tabulated(results["cross_validation_results"], "Cross-Validation Results")
