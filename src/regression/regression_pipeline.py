@@ -7,7 +7,7 @@ from sklearn.model_selection import KFold, cross_val_score
 from sklearn.preprocessing import StandardScaler
 
 from helper.data_frame_printer import DataFramePrinter
-from src.regression.baseline_history_regression import BaselineHistoryRegression
+from regression.baseline_history_regression import BaselineHistoryRegression
 
 class RegressionPipeline:
     def __init__(self):
