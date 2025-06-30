@@ -30,10 +30,10 @@ def main(mode, hours):
 
     print("Running the Data Preprocessing pipeline...\n")
     data_pre_processor = DataPreProcessor(raw_data_file_path)
-    cleaned_df_lagged = data_pre_processor.pre_process_dataset(hours)
+    cleaned_df_lagged = data_pre_processor.pre_process_dataset(hours, mode)
 
-    train_data_path = os.path.join(data_dir_path, "train_data.csv")
-    test_data_path = os.path.join(data_dir_path, "test_data.csv")
+    train_data_path = os.path.join(data_dir_path, f"train_data_{mode}.csv")
+    test_data_path = os.path.join(data_dir_path, f"test_data_{mode}.csv")
 
     if not os.path.exists(train_data_path) or not os.path.exists(test_data_path):
         print("\nCreating train/test split and saving datasets...")

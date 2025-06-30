@@ -7,7 +7,7 @@ from sklearn.model_selection import KFold, cross_val_score
 from sklearn.preprocessing import StandardScaler
 
 from helper.data_frame_printer import DataFramePrinter
-
+from src.regression.baseline_history_regression import BaselineHistoryRegression
 
 class RegressionPipeline:
     def __init__(self):
@@ -17,21 +17,24 @@ class RegressionPipeline:
         self.models = {
             "Linear Regression": {
                 "model": LinearRegression(),
-                "column_selector": lambda X: X.select_dtypes(include=[np.number])
+                "column_selector": lambda X: X.select_dtypes(include=[np.number]),
+                "use_scaling": True
             },
             "Ridge Regression": {
                 "model": Ridge(),
-                "column_selector": lambda X: X.select_dtypes(include=[np.number])
+                "column_selector": lambda X: X.select_dtypes(include=[np.number]),
+                "use_scaling": True
             },
             "Lasso Regression": {
                 "model": Lasso(alpha=0.1),
-                "column_selector": lambda X: X.select_dtypes(include=[np.number])
+                "column_selector": lambda X: X.select_dtypes(include=[np.number]),
+                "use_scaling": True
             },
-            # Example for a custom model that uses all columns (including non-numeric):
-            # "Custom Baseline": {
-            #     "model": MyCustomModel(),
-            #     "column_selector": lambda X: X
-            # },
+            "Baseline History Regression": {
+                "model": BaselineHistoryRegression(),
+                "column_selector": lambda X: X,
+                "use_scaling": False
+            }
         }
         self.scaler = None  # Initialize the scaler
 
@@ -46,10 +49,12 @@ class RegressionPipeline:
         """
         for name, model_info in self.models.items():
             X_train_selected = model_info["column_selector"](X_train)
-            # Fit the scaler on training data (numeric only)
-            self.scaler = StandardScaler()
-            X_train_scaled = self.scaler.fit_transform(X_train_selected)
-            model_info["model"].fit(X_train_scaled, y_train)
+            if model_info.get("use_scaling", True):
+                self.scaler = StandardScaler()
+                X_train_processed = self.scaler.fit_transform(X_train_selected)
+            else:
+                X_train_processed = X_train_selected
+            model_info["model"].fit(X_train_processed, y_train)
             print(f"{name} model trained successfully.")
 
     def __evaluate_models(self, X_test, y_test):
@@ -72,9 +77,12 @@ class RegressionPipeline:
         for name, model_info in self.models.items():
             print(f"\nEvaluating {name}...")
             X_test_selected = model_info["column_selector"](X_test)
-            X_test_scaled = self.scaler.transform(X_test_selected)
-            predictions = model_info["model"].predict(X_test_scaled)
-            accuracy = model_info["model"].score(X_test_scaled, y_test) * 100
+            if model_info.get("use_scaling", True):
+                X_test_processed = self.scaler.transform(X_test_selected)
+            else:
+                X_test_processed = X_test_selected
+            predictions = model_info["model"].predict(X_test_processed)
+            accuracy = model_info["model"].score(X_test_processed, y_test) * 100
 
             mse = mean_squared_error(y_test, predictions)
             mae = mean_absolute_error(y_test, predictions)
@@ -101,7 +109,11 @@ class RegressionPipeline:
         # Linear Regression Coefficients
         linear_model_info = self.models["Linear Regression"]
         X_train_linear = linear_model_info["column_selector"](X_train)
-        X_train_scaled = self.scaler.fit_transform(X_train_linear)
+        if linear_model_info.get("use_scaling", True):
+            self.scaler = StandardScaler()
+            X_train_scaled = self.scaler.fit_transform(X_train_linear)
+        else:
+            X_train_scaled = X_train_linear
         linear_model_info["model"].fit(X_train_scaled, y_train)
         linear_coefficients = pd.Series(linear_model_info["model"].coef_, index=X_train_linear.columns)
         print("\nLinear Regression Coefficients, ordered by importance:")
@@ -110,7 +122,11 @@ class RegressionPipeline:
         # Lasso Regression Coefficients
         lasso_model_info = self.models["Lasso Regression"]
         X_train_lasso = lasso_model_info["column_selector"](X_train)
-        X_train_scaled_lasso = self.scaler.fit_transform(X_train_lasso)
+        if lasso_model_info.get("use_scaling", True):
+            self.scaler = StandardScaler()
+            X_train_scaled_lasso = self.scaler.fit_transform(X_train_lasso)
+        else:
+            X_train_scaled_lasso = X_train_lasso
         lasso_model_info["model"].fit(X_train_scaled_lasso, y_train)
         lasso_coefficients = pd.Series(lasso_model_info["model"].coef_, index=X_train_lasso.columns)
         print("\nLasso Regression Coefficients, ordered by importance:")
@@ -164,10 +180,13 @@ class RegressionPipeline:
             for name, model_info in self.models.items():
                 X_train_selected = model_info["column_selector"](X_train_config)
                 X_test_selected = model_info["column_selector"](X_test_config)
-                # Scale the features
-                self.scaler = StandardScaler()
-                X_train_scaled = self.scaler.fit_transform(X_train_selected)
-                X_test_scaled = self.scaler.transform(X_test_selected)
+                if model_info.get("use_scaling", True):
+                    self.scaler = StandardScaler()
+                    X_train_scaled = self.scaler.fit_transform(X_train_selected)
+                    X_test_scaled = self.scaler.transform(X_test_selected)
+                else:
+                    X_train_scaled = X_train_selected
+                    X_test_scaled = X_test_selected
                 model_info["model"].fit(X_train_scaled, y_train)
                 predictions = model_info["model"].predict(X_test_scaled)
                 rmse = np.sqrt(mean_squared_error(y_test, predictions))
@@ -196,8 +215,11 @@ class RegressionPipeline:
 
         for name, model_info in self.models.items():
             X_selected = model_info["column_selector"](X)
-            self.scaler = StandardScaler()
-            X_scaled = self.scaler.fit_transform(X_selected)
+            if model_info.get("use_scaling", True):
+                self.scaler = StandardScaler()
+                X_scaled = self.scaler.fit_transform(X_selected)
+            else:
+                X_scaled = X_selected
             kf = KFold(n_splits=cv_folds, shuffle=True, random_state=42)
             scores = cross_val_score(model_info["model"], X_scaled, y, cv=kf, scoring="neg_mean_squared_error")
             mean_mse = -scores.mean()
@@ -222,6 +244,7 @@ class RegressionPipeline:
         Returns:
             results: Dictionary containing evaluation results, feature importance, and cross-validation results.
         """
+        
         self.__train_models(X_train, y_train)
         evaluation_results = self.__evaluate_models(X_test, y_test)
         self.__compute_feature_importance(X_train, y_train)

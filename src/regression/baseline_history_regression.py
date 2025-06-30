@@ -34,6 +34,8 @@ class BaselineHistoryRegression(Regression, BaseEstimator, RegressorMixin):
             # filter the training data to include only the rows of the same patient
             patient_data = self.data[self.data['patient_id'] == patient_id]
 
+            print(patient_data)
+
             # filter the training data to include only the rows before the timestamp in the test data
             patient_data = patient_data[patient_data['timestamp'] < timestamp]
 

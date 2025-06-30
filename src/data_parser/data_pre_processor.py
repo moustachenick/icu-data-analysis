@@ -12,7 +12,7 @@ class DataPreProcessor:
     def __init__(self, raw_data_file_path):
         self.raw_data_file_path = raw_data_file_path
 
-    def pre_process_dataset(self, hours):
+    def pre_process_dataset(self, hours, mode):
         """
         Preprocess the dataset and create lagged features.
         :param hours: Number of hours to use for creating lag features.
@@ -20,7 +20,7 @@ class DataPreProcessor:
         """
 
         lagged_file_path = os.path.abspath(
-            os.path.join(os.path.dirname(__file__), "..", "..", "data", "cleaned_df_lagged.csv")
+            os.path.join(os.path.dirname(__file__), "..", "..", "data", f"cleaned_df_lagged_{mode}.csv")
         )
 
         # if the file already exists, return the dataframe
@@ -48,26 +48,21 @@ class DataPreProcessor:
         print("\n~~~~ STEP 4: Standardizing missing values (converting 0 to Nan, etc) ~~~~\n")
         df = self.standardize_missing_values(df)
 
-        if input("Do you want to drop columns with more than 1 missing values? (y/n): ").lower() == 'y':
+        if mode == "regression" or input("Do you want to drop columns with more than 1 missing values? (y/n): ").lower() == 'y':
             print("\n~~~~ STEP 5: Dropping columns with high missing values ~~~~\n")
             df = self.drop_columns_with_high_missing_values(df)
             print(f"Number of rows in the dataset after the dropping: {df.shape[0]}")
 
-        if input("Do you want to delete rows that have ICP outliers? (y/n): ").lower() == 'y':
-            print("\n~~~~ STEP 6: Cleaning ICP outliers ~~~~\n")
-            df = self.clean_icp_outliers(df)
-            print(f"Number of rows in the dataset after the cleaning: {df.shape[0]}")
+        print("\n~~~~ STEP 6: Cleaning ICP outliers ~~~~\n")
+        df = self.clean_icp_outliers(df)
+        print(f"Number of rows in the dataset after the cleaning: {df.shape[0]}")
 
-        if input("Do you want to impute missing values? (y/n): ").lower() == 'y':
+        if mode == "regression" or input("Do you want to impute missing values? (y/n): ").lower() == 'y':
             print("\n~~~~ STEP 7: Imputing missing values ~~~~\n")
             df = self.known_nearest_neighbor_imputer(df)
 
         print("\n~~~~ STEP 8: Creating lagged features ~~~~\n")
-        df = self.create_lagged_features(df, hours)
-
-        print("\n~~~~ STEP 9: Deleting non-lagged columns (except the target one) ~~~~\n")
-        # Drop all columns that do not have 'lag' in their name (except the target column 'icp')
-        # df = df.drop(columns=df.columns[~df.columns.str.contains('lag') & (df.columns != 'icp')])
+        df = self.create_lagged_features(df, hours, mode)
 
         print("Preprocessing complete.")
         print(f"Number of rows in the cleaned dataset: {df.shape[0]}")
@@ -233,7 +228,7 @@ class DataPreProcessor:
 
         return cleaned_df
 
-    def create_lagged_features(self, data, hours):
+    def create_lagged_features(self, data, hours, mode):
         """
         Preprocess the dataset and create lagged features.
         :param data: DataFrame to process
@@ -247,7 +242,7 @@ class DataPreProcessor:
         ]
         time_series_processor = TimeSeriesProcessor()
         data = time_series_processor.process_data(
-            data, hours=hours, columns_to_lag=columns_to_lag
+            data, hours=hours, columns_to_lag=columns_to_lag, mode=mode
         )
 
         print(f"\nColumns after creating lagged features: {data.columns}")

@@ -25,7 +25,7 @@ file_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 
 
 data_processor = DataPreProcessor(file_path)
 
-cleaned_df = data_processor.pre_process_dataset()
+cleaned_df = data_processor.pre_process_dataset(hours=2, mode="regression")
 
 # Prepare the features and target variable
 X = cleaned_df.drop(columns=["icp", "icp"])  # Features

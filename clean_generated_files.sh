@@ -3,11 +3,9 @@
 
 echo "Removing all generated files..."
 
-rm data/cleaned_df_lagged.csv
-rm data/final_data.csv
-rm data/test_data.csv
-rm data/test_data_classification.csv
-rm data/train_data.csv
-rm data/train_data_classification.csv
+rm -f data/cleaned_df_lagged*.csv
+rm -f data/final_data.csv
+rm -f data/test_data*.csv
+rm -f data/train_data*.csv
 
 echo "All generated files removed ✅"

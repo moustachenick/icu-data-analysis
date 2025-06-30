@@ -31,9 +31,9 @@ cleaned_df = data_processor.pre_process_dataset()
 
 time_series_processor = TimeSeriesProcessor()
 
-# Filepath for the cleaned lagged DataFrame CSV (../../data/cleaned_df_lagged.csv)
+# Filepath for the cleaned lagged DataFrame CSV (../../data/cleaned_df_lagged_regression.csv)
 csv_filepath =  os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "..", "data", "cleaned_df_lagged.csv")
+    os.path.join(os.path.dirname(__file__), "..", "..", "..", "data", "cleaned_df_lagged_regression.csv")
 )
 
 
