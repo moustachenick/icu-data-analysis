@@ -6,7 +6,7 @@ from regression.regression import Regression
 
 class BaselineMeanRegression(Regression, BaseEstimator, RegressorMixin):
     def __init__(self):
-        self.data = pd.DataFrame(columns=['patient_id', 'timestamp', 'icp_next'])
+        self.data = pd.DataFrame(columns=['patient_id', 'timestamp', 'icp'])
 
     def fit(self, X_train, y_train):
         # Concatenate X_train (columns patient_id and timestamp) and y_train (icp)
@@ -25,10 +25,10 @@ class BaselineMeanRegression(Regression, BaseEstimator, RegressorMixin):
 
             # If there are no previous records, use the overall mean ICP as a fallback
             if patient_data.empty:
-                prediction = self.data['icp_next'].mean()
+                prediction = self.data['icp'].mean()
             else:
                 # Calculate the mean ICP value for all previous timestamps
-                prediction = patient_data['icp_next'].mean()
+                prediction = patient_data['icp'].mean()
 
             predictions.append(prediction)
 

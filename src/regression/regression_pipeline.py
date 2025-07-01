@@ -248,7 +248,11 @@ class RegressionPipeline:
         self.__train_models(X_train, y_train)
         evaluation_results = self.__evaluate_models(X_test, y_test)
         self.__compute_feature_importance(X_train, y_train)
+
+        print("Performing cross-validation...")
         cross_validation_results = self.__perform_cross_validation(pd.concat([X_train, X_test]), pd.concat([y_train, y_test]), cv_folds)
+        
+        print("Evaluating with feature configurations...")
         feature_config_results = self.__evaluate_with_feature_configs(X_train, X_test, y_train, y_test)
 
         results = {

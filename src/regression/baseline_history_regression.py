@@ -8,7 +8,7 @@ from sklearn.base import BaseEstimator, RegressorMixin
 class BaselineHistoryRegression(Regression, BaseEstimator, RegressorMixin):
 
     def __init__(self):
-        self.data = pd.DataFrame(columns=['patient_id', 'timestamp', 'icp_next'])
+        self.data = pd.DataFrame(columns=['patient_id', 'timestamp', 'icp'])
 
     def fit(self, X_train, y_train):
         # we will use all the data from X_train to make the predictions. we will filter the data to include only the
@@ -34,21 +34,19 @@ class BaselineHistoryRegression(Regression, BaseEstimator, RegressorMixin):
             # filter the training data to include only the rows of the same patient
             patient_data = self.data[self.data['patient_id'] == patient_id]
 
-            print(patient_data)
-
             # filter the training data to include only the rows before the timestamp in the test data
             patient_data = patient_data[patient_data['timestamp'] < timestamp]
 
             # if there are no rows before the timestamp, the prediction is the average icp value
             # of all patients
             if patient_data.empty:
-                prediction = self.data['icp_next'].mean()
+                prediction = self.data['icp'].mean()
                 predictions.append(prediction)
             else:
                 # get the most recent icp value for the patient
                 # order the data for this patient by timestamp
                 patient_data = patient_data.sort_values(by='timestamp')
-                prediction = patient_data['icp_next'].iloc[-1]
+                prediction = patient_data['icp'].iloc[-1]
                 predictions.append(prediction)
 
         return predictions
