@@ -7,6 +7,7 @@ from sklearn.model_selection import train_test_split
 from classification.classification_pipeline import ClassificationPipeline
 from data_parser.data_parser import DataParser
 from data_parser.data_pre_processor import DataPreProcessor
+from data_parser.binary_data_processor import BinaryDataProcessor
 from helper.data_frame_printer import DataFramePrinter
 from tabulate import tabulate
 from regression.regression_pipeline import RegressionPipeline
@@ -47,26 +48,31 @@ def main(mode, hours):
         train_data = cleaned_df_lagged[cleaned_df_lagged["patient_id"].isin(train_patients)].copy()
         test_data = cleaned_df_lagged[cleaned_df_lagged["patient_id"].isin(test_patients)].copy()
 
-        # Final X/y splits
-        X_train = train_data.drop(columns=["icp"])
-        y_train = train_data["icp"]
-        X_test = test_data.drop(columns=["icp"])
-        y_test = test_data["icp"]
+        # For classification mode, create the binary column before saving
+        if mode == "classification":
+            binary_processor = BinaryDataProcessor()
+            train_data = binary_processor.create_binary_data(train_data)
+            test_data = binary_processor.create_binary_data(test_data)
 
-        train_data = pd.concat([X_train, y_train], axis=1)
-        test_data = pd.concat([X_test, y_test], axis=1)
         train_data.to_csv(train_data_path, index=False)
         test_data.to_csv(test_data_path, index=False)
 
         print_dataset_statistics(train_data, test_data)
     else:
-        print("\nTrain and test datasets already exist. Skipping dataset creation.")
-        X_train = pd.read_csv(train_data_path).drop(columns=["icp"])
-        y_train = pd.read_csv(train_data_path)["icp"]
-        X_test = pd.read_csv(test_data_path).drop(columns=["icp"])
-        y_test = pd.read_csv(test_data_path)["icp"]
+        print(f"\nTrain and test datasets for {mode} already exist. Skipping dataset creation.")
+        train_data = pd.read_csv(train_data_path)
+        test_data = pd.read_csv(test_data_path)
 
     if mode == "classification":
+        # For classification, separate features and target
+        if "icp_binary" not in train_data.columns or "icp_binary" not in test_data.columns:
+            raise ValueError("The 'icp_binary' column is missing in the train or test data. Please ensure the binary data is created correctly.")
+        
+        X_train = train_data.drop(columns=["icp_binary"])
+        y_train = train_data["icp_binary"]
+        X_test = test_data.drop(columns=["icp_binary"])
+        y_test = test_data["icp_binary"]
+        
         pipeline = ClassificationPipeline(data_dir_path)
         pipeline.run_pipeline(X_train, X_test, y_train, y_test)
         if input("Run also the 10-fold cross-validation? (y/n): ").lower() == 'y':
@@ -76,6 +82,12 @@ def main(mode, hours):
             y = pd.concat([y_train, y_test], axis=0).reset_index(drop=True)
             pipeline.run_cross_validation_pipeline(X, y)
     else:
+        # For regression, separate features and target
+        X_train = train_data.drop(columns=["icp"])
+        y_train = train_data["icp"]
+        X_test = test_data.drop(columns=["icp"])
+        y_test = test_data["icp"]
+        
         run_regression_pipeline(X_train, X_test, y_train, y_test)
 
     print("\nICP Prediction pipeline completed. ✅")

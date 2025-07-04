@@ -2,6 +2,7 @@ import pandas as pd
 from pathlib import Path
 import os
 
+ICP_BINARY_THRESHOLD = 22
 
 class BinaryDataProcessor:
     """
@@ -33,7 +34,7 @@ class BinaryDataProcessor:
             self.data = data
 
         # Create a new binary column
-        self.data['icp_binary'] = self.data['icp'].apply(lambda x: 1 if x >= 22 else 0)
+        self.data['icp_binary'] = self.data['icp'].apply(lambda x: 1 if x >= ICP_BINARY_THRESHOLD else 0)
         # remove the original 'icp' column, since it is no longer needed
         self.data.drop(columns=['icp'], inplace=True)
         return self.data
