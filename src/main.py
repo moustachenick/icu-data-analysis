@@ -104,12 +104,11 @@ def print_dataset_statistics(train_data, test_data):
 
 
 def run_regression_pipeline(X_train, X_test, y_train, y_test):
-    if input("Do you want to continue with the Regression pipeline? (y/n): ").lower() == 'y':
-        pipeline = RegressionPipeline()
-        results = pipeline.run_pipeline(X_train, X_test, y_train, y_test)
+    pipeline = RegressionPipeline()
+    results = pipeline.run_pipeline(X_train, X_test, y_train, y_test)
 
-        DataFramePrinter.print_dataframe_tabulated(results["evaluation_results"], "Regression Predictions Results")
-        DataFramePrinter.print_dataframe_tabulated(results["cross_validation_results"], "Cross-Validation Results")
+    DataFramePrinter.print_dataframe_tabulated(results["evaluation_results"], "Regression Predictions Results")
+    DataFramePrinter.print_dataframe_tabulated(results["cross_validation_results"], "Cross-Validation Results")
 
 
 def print_statistics_about_the_data(raw_data_file_path):

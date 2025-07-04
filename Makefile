@@ -3,3 +3,9 @@ init:
 
 test:
 	nosetests tests
+
+lint:
+	ruff check .
+
+lint-fix:
+	ruff check . --fix

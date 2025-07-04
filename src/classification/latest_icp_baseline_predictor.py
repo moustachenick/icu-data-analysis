@@ -1,6 +1,5 @@
 from sklearn.metrics import classification_report, confusion_matrix
 import numpy as np
-import pandas as pd
 
 class LatestICPBaselinePredictor:
     """
@@ -30,16 +29,11 @@ class LatestICPBaselinePredictor:
 
         y_pred = (X_test[self.icp_lag_col] > self.threshold).astype(int)
 
-        # Get patient_id and date for alignment
-        patient_ids = X_test["patient_id"].values
-        dates = pd.to_datetime(X_test["timestamp"]).dt.date.values
-
         return {
             'name': 'LatestICPBaselinePredictor',
             'confusion_matrix': confusion_matrix(y_test, y_pred),
             'classification_report': classification_report(y_test, y_pred, output_dict=True, zero_division=0),
             'y_true': np.array(y_test),
             'y_pred': np.array(y_pred),
-            
         }
 

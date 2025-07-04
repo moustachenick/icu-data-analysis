@@ -147,8 +147,8 @@ class RegressionPipeline:
         """
         feature_configs = {
             "Full Dataset": X_train.columns,
-            "Lags 1-3-5": [col for col in X_train.columns if '_lag_' in col and any(x in col for x in ['_lag_1', '_lag_3', '_lag_5'])],
-            "Drop PEEP, PH, SPO2": [col for col in X_train.columns if col not in ["peep", "ph", "spo2"]],
+            "Lags 1-3-5": [col for col in X_train.columns if '_lag_' in col and any(x in col for x in ['_lag_1', '_lag_3', '_lag_5']) or col in ["patient_id", "timestamp"]],
+            "Drop PEEP, PH, SPO2": [col for col in X_train.columns if col not in ["peep", "ph", "spo2"] or col in ["patient_id", "timestamp"]],
             "Extensive Drop": [col for col in X_train.columns if col not in [
                 "spo2", "spo2_lag_1", "spo2_lag_2", "spo2_lag_3", "spo2_lag_4", "spo2_lag_5",
                 "heart_rate", "heart_rate_lag_1", "heart_rate_lag_2", "heart_rate_lag_3", "heart_rate_lag_4",
@@ -163,13 +163,14 @@ class RegressionPipeline:
                 "haemoglobin_lag_5",
                 "cpp", "cpp_lag_1", "cpp_lag_2", "cpp_lag_3", "cpp_lag_4", "cpp_lag_5",
                 "mean_blood_pressure", "mean_blood_pressure_lag_1", "mean_blood_pressure_lag_2",
-                "mean_blood_pressure_lag_3", "mean_blood_pressure_lag_5"]]
+                "mean_blood_pressure_lag_3", "mean_blood_pressure_lag_5"] or col in ["patient_id", "timestamp"]]
         }
 
         rmse_metrics = {"Model": list(self.models.keys())}
 
         for config_name, columns in feature_configs.items():
             print(f"\nEvaluating for configuration: {config_name}")
+
 
             # Select the columns for the current configuration
             X_train_config = X_train[columns]
@@ -178,6 +179,16 @@ class RegressionPipeline:
             # Collect RMSE for all models
             rmse_values = []
             for name, model_info in self.models.items():
+
+                # if the model needs scaling, then we should drop the non-numeric columns
+                if model_info.get("use_scaling", True):
+                    # Ensure we only select numeric columns for scaling
+                    X_train_config = X_train_config.select_dtypes(include=[np.number])
+                    X_test_config = X_test_config.select_dtypes(include=[np.number])
+                else:
+                    X_train_config = X_train[columns]
+                    X_test_config = X_test[columns]
+
                 X_train_selected = model_info["column_selector"](X_train_config)
                 X_test_selected = model_info["column_selector"](X_test_config)
                 if model_info.get("use_scaling", True):
@@ -209,9 +220,9 @@ class RegressionPipeline:
             cv_folds (int): Number of cross-validation folds.
 
         Returns:
-            cv_results_df: DataFrame containing cross-validation MSE for all models.
+            cv_results_df: DataFrame containing cross-validation RMSE for all models.
         """
-        cv_results = {"Model": [], "Mean CV MSE": []}
+        cv_results = {"Model": [], "Mean CV RMSE": []}
 
         for name, model_info in self.models.items():
             X_selected = model_info["column_selector"](X)
@@ -222,9 +233,9 @@ class RegressionPipeline:
                 X_scaled = X_selected
             kf = KFold(n_splits=cv_folds, shuffle=True, random_state=42)
             scores = cross_val_score(model_info["model"], X_scaled, y, cv=kf, scoring="neg_mean_squared_error")
-            mean_mse = -scores.mean()
+            mean_rmse = np.sqrt(-scores.mean())  # Convert MSE to RMSE
             cv_results["Model"].append(name)
-            cv_results["Mean CV MSE"].append(mean_mse)
+            cv_results["Mean CV RMSE"].append(mean_rmse)
 
         cv_results_df = pd.DataFrame(cv_results)
         print("Cross-validation completed.")

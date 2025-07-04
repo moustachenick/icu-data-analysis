@@ -1,7 +1,6 @@
 import sys
 import os
 
-from matplotlib import pyplot as plt
 
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
@@ -49,7 +48,7 @@ else:
     # Process the data by creating lag features
     cleaned_df = time_series_processor.process_data(cleaned_df, hours=hours, columns_to_lag=columns_to_lag)
 
-print(f"\nDataset pre-processed and lag features created.")
+print("\nDataset pre-processed and lag features created.")
 print(f"\nNumber of rows in the cleaned dataset: {cleaned_df.shape[0]}")
 
 # print the number of rows with NaN or missing values

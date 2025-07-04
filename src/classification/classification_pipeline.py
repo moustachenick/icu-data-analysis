@@ -118,7 +118,8 @@ class ClassificationPipeline:
         p_xgb_vs_latest = self.run_mcnemar_test(res_xgb_no_params, res_latest, label="XGBoost vs Latest")
         p_latest_vs_lagged = self.run_mcnemar_test(res_latest, res_lagged, label="Latest vs Lagged")
 
-        format_p = lambda p: "< 0.0000000001" if p < 1e-10 else f"{p:.10f}"
+        def format_p(p):
+            return "< 0.0000000001" if p < 1e-10 else f"{p:.10f}"
 
         print(tabulate([
             ["XGBoost vs Lagged", format_p(p_xgb_vs_lagged), "✓" if p_xgb_vs_lagged < 0.05 else "✗"],
@@ -178,7 +179,7 @@ class ClassificationPipeline:
         p = result.pvalue
 
         if p < 1e-10:
-            print(f"   ➤ p-value: < 0.0000000001")
+            print("   ➤ p-value: < 0.0000000001")
         else:
             print(f"   ➤ p-value: {p:.10f}")  # 10 δεκαδικά ψηφία
 
