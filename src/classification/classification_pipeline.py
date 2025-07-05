@@ -36,59 +36,44 @@ class ClassificationPipeline:
 
     def __init__(self, data_dir_path):
         self.data_dir_path = data_dir_path
-        self.train_data_classification_path = os.path.join(data_dir_path, "train_data_classification.csv")
-        self.test_data_classification_path = os.path.join(data_dir_path, "test_data_classification.csv")
-
-    def prepare_classification_datasets(self, X_train, X_test, y_train, y_test):
-        if not os.path.exists(self.train_data_classification_path) or not os.path.exists(
-                self.test_data_classification_path):
-            print("\nCreating classification datasets...")
-            binary_processor = BinaryDataProcessor()
-            train_data = pd.concat([X_train, y_train], axis=1)
-            test_data = pd.concat([X_test, y_test], axis=1)
-            train_data = binary_processor.create_binary_data(train_data)
-            test_data = binary_processor.create_binary_data(test_data)
-            train_data.to_csv(self.train_data_classification_path, index=False)
-            test_data.to_csv(self.test_data_classification_path, index=False)
-        else:
-            print("\nClassification datasets already exist. Skipping dataset creation.")
-        train_data = pd.read_csv(self.train_data_classification_path)
-        test_data = pd.read_csv(self.test_data_classification_path)
-        return train_data, test_data
 
     def run_pipeline(self, X_train, X_test, y_train, y_test):
-        train_data, test_data = self.prepare_classification_datasets(X_train, X_test, y_train, y_test)
-
+        # Remove the prepare_classification_datasets method call since data is already prepared
+        
         results = []
+        
+        # For LaggedICPBaselinePredictor, we need the original ICP values
+        # Convert binary back to continuous for this predictor
+        # y_test_continuous = X_test["icp"] if "icp" in X_test.columns else None
+        # if y_test_continuous is None:
+        #     # If icp is not in X_test, we need to handle this case
+        #     # For now, we'll skip this predictor or handle it differently
+        #     print("Warning: ICP column not found in X_test for LaggedICPBaselinePredictor")
+        # else:
         daily_mean_predictor = LaggedICPBaselinePredictor()
         results.append(daily_mean_predictor.run_pipeline(X_test, y_test))
 
-        X_train_bin = train_data.drop(columns=["icp_binary"])
-        y_train_bin = train_data["icp_binary"]
-        X_test_bin = test_data.drop(columns=["icp_binary"])
-        y_test_bin = test_data["icp_binary"]
-
         baseline_predictor = LatestICPBaselinePredictor()
-        results.append(baseline_predictor.run_pipeline(X_test_bin, y_test_bin))
+        results.append(baseline_predictor.run_pipeline(X_test, y_test))
 
         xg_boost_predictor_no_params = XGBoostClassificationPredictor()
-        results.append(xg_boost_predictor_no_params.run_pipeline(X_train_bin, X_test_bin, y_train_bin, y_test_bin))
+        results.append(xg_boost_predictor_no_params.run_pipeline(X_train, X_test, y_train, y_test))
 
         xg_boost_predictor = XGBoostClassificationPredictor(model_params=self.xg_boost_model_params)
-        results.append(xg_boost_predictor.run_pipeline(X_train_bin, X_test_bin, y_train_bin, y_test_bin))
+        results.append(xg_boost_predictor.run_pipeline(X_train, X_test, y_train, y_test))
 
         # XGBoost with only icp_lag_* features (default params)
         xgb_lagonly = XGBoostClassificationPredictor(
             feature_selector=XGBoostClassificationPredictor.lag_only_feature_selector
         )
-        results.append(xgb_lagonly.run_pipeline(X_train_bin, X_test_bin, y_train_bin, y_test_bin))
+        results.append(xgb_lagonly.run_pipeline(X_train, X_test, y_train, y_test))
 
         # XGBoost with only icp_lag_* features (custom params)
         xgb_lagonly_params = XGBoostClassificationPredictor(
             model_params=self.xg_boost_model_params,
             feature_selector=XGBoostClassificationPredictor.lag_only_feature_selector
         )
-        results.append(xgb_lagonly_params.run_pipeline(X_train_bin, X_test_bin, y_train_bin, y_test_bin))
+        results.append(xgb_lagonly_params.run_pipeline(X_train, X_test, y_train, y_test))
 
         print("\n=== CLASSIFICATION RESULTS ===")
         print(f"Number of test samples: {len(X_test)}")
@@ -118,7 +103,8 @@ class ClassificationPipeline:
         p_xgb_vs_latest = self.run_mcnemar_test(res_xgb_no_params, res_latest, label="XGBoost vs Latest")
         p_latest_vs_lagged = self.run_mcnemar_test(res_latest, res_lagged, label="Latest vs Lagged")
 
-        format_p = lambda p: "< 0.0000000001" if p < 1e-10 else f"{p:.10f}"
+        def format_p(p):
+            return "< 0.0000000001" if p < 1e-10 else f"{p:.10f}"
 
         print(tabulate([
             ["XGBoost vs Lagged", format_p(p_xgb_vs_lagged), "✓" if p_xgb_vs_lagged < 0.05 else "✗"],
@@ -191,7 +177,7 @@ class ClassificationPipeline:
         p = result.pvalue
 
         if p < 1e-10:
-            print(f"   ➤ p-value: < 0.0000000001")
+            print("   ➤ p-value: < 0.0000000001")
         else:
             print(f"   ➤ p-value: {p:.10f}")  # 10 δεκαδικά ψηφία
 
@@ -222,7 +208,6 @@ class ClassificationPipeline:
         # Preprocess once for binary classification
         binary_processor = BinaryDataProcessor()
         full_data = pd.concat([X, y], axis=1)
-        full_data = binary_processor.create_binary_data(full_data)
 
         # Create binary labels ONLY for stratification
         y_stratify = (y >= 22).astype(int)
@@ -262,8 +247,8 @@ class ClassificationPipeline:
 
             # === Binary processing for LatestICP + XGBoost ===
             binary_processor = BinaryDataProcessor()
-            train_bin = binary_processor.create_binary_data(pd.concat([X_train_raw, y_train_raw], axis=1))
-            test_bin = binary_processor.create_binary_data(pd.concat([X_test_raw, y_test_raw], axis=1))
+            train_bin = pd.concat([X_train_raw, y_train_raw], axis=1)
+            test_bin = pd.concat([X_test_raw, y_test_raw], axis=1)
 
             X_train_bin = train_bin.drop(columns=["icp_binary"])
             y_train_bin = train_bin["icp_binary"]
@@ -332,5 +317,5 @@ class ClassificationPipeline:
         plt.gca().invert_yaxis()  
         plt.tight_layout()
         plt.savefig("xgboost_feature_importance.png", dpi=300)
-        print(" Saved clean feature importance plot as 'xgboost_feature_importance.png'")
+        print("Saved clean feature importance plot as 'xgboost_feature_importance.png'")
         plt.close()

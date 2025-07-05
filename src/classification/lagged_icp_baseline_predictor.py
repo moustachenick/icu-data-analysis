@@ -1,5 +1,4 @@
 import pandas as pd
-import numpy as np
 from sklearn.metrics import classification_report, confusion_matrix
 
 
@@ -53,7 +52,7 @@ class LaggedICPBaselinePredictor:
 
         Args:
             X_test (pd.DataFrame): Test feature set containing lagged ICP columns.
-            y_test (pd.Series): Ground truth continuous ICP values.
+            y_test (pd.Series): Ground truth binary icp_binary values.
 
         Returns:
             dict: Contains predictor name, confusion matrix, classification report, and
@@ -67,7 +66,7 @@ class LaggedICPBaselinePredictor:
 
         # Apply threshold for binary classification
         y_pred_bin = (icp_means >= self.threshold).astype(int)
-        y_true_bin = (y_test >= self.threshold).astype(int)
+        y_true_bin = y_test.astype(int)
 
         return {
             'name': 'LaggedICPBaselinePredictor',

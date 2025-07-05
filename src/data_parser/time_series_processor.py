@@ -3,7 +3,7 @@ import pandas as pd
 
 class TimeSeriesProcessor:
 
-    def process_data(self, data, hours=5, columns_to_lag=None):
+    def process_data(self, data, hours=5, columns_to_lag=None, mode="regression"):
         """
         Process the full dataset by creating lag features for each row and handling missing values.
         This method creates lag features for each row based on the previous measurements within the specified number of hours.
@@ -43,7 +43,7 @@ class TimeSeriesProcessor:
         # Ask the user if they want to drop the rows
         user_input = input("Do you want to drop the rows with null values in lagged columns? (y/n): ").strip().lower()
 
-        if user_input == 'y':
+        if mode == "regression" or user_input == 'y':
             initial_row_count = processed_data_df.shape[0]
             processed_data_df = processed_data_df.dropna(subset=lagged_columns)
             dropped_row_count = initial_row_count - processed_data_df.shape[0]

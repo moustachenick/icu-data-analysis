@@ -114,3 +114,5 @@ test*.txt
 **/desktop.ini
 
 data.zip
+
+xgboost_feature_importance.png
