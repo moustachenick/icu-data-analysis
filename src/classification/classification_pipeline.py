@@ -152,6 +152,19 @@ class ClassificationPipeline:
         summary_df = pd.DataFrame(summary)
         DataFramePrinter.print_dataframe_tabulated(summary_df, "Classification Models Comparison")
 
+        print("\n=== CASES WHERE XGBOOST IS CORRECT AND BASELINE IS WRONG (on ICP ≥ 22mmHg) ===\n")
+
+        self.count_cases_where_xgb_correct_baseline_wrong(res_xgb_no_params, res_lagged, "XGBoost vs Lagged (default)")
+        self.count_cases_where_xgb_correct_baseline_wrong(res_xgb_with_params, res_lagged, "XGBoost + Params vs Lagged (params)")
+        self.count_cases_where_xgb_correct_baseline_wrong(res_xgb_lagonly, res_lagged, "XGBoost LagOnly vs Lagged")
+        self.count_cases_where_xgb_correct_baseline_wrong(res_xgb_lagonly_params, res_lagged, "XGBoost LagOnly+Params vs Lagged")
+
+        self.count_cases_where_xgb_correct_baseline_wrong(res_xgb_no_params, res_latest, "XGBoost vs Latest (default)")
+        self.count_cases_where_xgb_correct_baseline_wrong(res_xgb_with_params, res_latest, "XGBoost + Params vs Latest (params)")
+        self.count_cases_where_xgb_correct_baseline_wrong(res_xgb_lagonly, res_latest, "XGBoost LagOnly vs Latest")
+        self.count_cases_where_xgb_correct_baseline_wrong(res_xgb_lagonly_params, res_latest, "XGBoost LagOnly+Params vs Latest")
+
+
         # Plot feature importances
         self.plot_xgboost_feature_importances(xg_boost_predictor.model)
         self.plot_xgboost_feature_importances(xgb_lagonly.model, title="XGBoost Feature Importances (Lag Only)")
@@ -183,6 +196,24 @@ class ClassificationPipeline:
             print(f"   ➤ p-value: {p:.10f}")  # 10 δεκαδικά ψηφία
 
         return p
+    
+    def count_cases_where_xgb_correct_baseline_wrong(self, xgb_result, baseline_result, label=""):
+        y_true = xgb_result["y_true"]
+        xgb_pred = xgb_result["y_pred"]
+        baseline_pred = baseline_result["y_pred"]
+
+        mask = y_true == 1
+
+        correct_by_xgb_wrong_by_baseline = (xgb_pred == 1) & (baseline_pred != 1) & mask
+        count = np.sum(correct_by_xgb_wrong_by_baseline)
+        total_positive = np.sum(mask)
+
+        percentage = (count / total_positive) * 100 if total_positive > 0 else 0
+
+        print(f"🧠 {label}")
+        print(f"   ➤ True Positives (ICP ≥ 22mmHg): {total_positive}")
+        print(f"   ➤ XGBoost correct & Baseline wrong: {count} ({percentage:.2f}%)\n")
+
 
 
     def run_cross_validation_pipeline(self, X, y, n_splits=10):
