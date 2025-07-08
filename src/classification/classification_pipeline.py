@@ -49,7 +49,7 @@ class ClassificationPipeline:
         results.append(baseline_predictor.run_pipeline(X_test, y_test))
 
         xg_boost_predictor_no_params = XGBoostClassificationPredictor()
-        results.append(xg_boost_predictor_no_params.run_pipelin e(X_train, X_test, y_train, y_test))
+        results.append(xg_boost_predictor_no_params.run_pipeline(X_train, X_test, y_train, y_test))
 
         xg_boost_predictor = XGBoostClassificationPredictor(model_params=self.xg_boost_model_params)
         results.append(xg_boost_predictor.run_pipeline(X_train, X_test, y_train, y_test))
@@ -71,7 +71,6 @@ class ClassificationPipeline:
         print(f"Number of test samples: {len(X_test)}")
         print(f"Number of positive samples (icp_binary is 1): {sum(y_test == 1)}")
         print(f"Number of negative samples (icp_binary is 0): {sum(y_test == 0)}")
-        print("================================\n")
 
         res_lagged = results[0]
         res_latest = results[1]
@@ -94,6 +93,20 @@ class ClassificationPipeline:
         p_xgb_vs_lagged = self.run_mcnemar_test(res_xgb_no_params, res_lagged, label="XGBoost vs Lagged")
         p_xgb_vs_latest = self.run_mcnemar_test(res_xgb_no_params, res_latest, label="XGBoost vs Latest")
         p_latest_vs_lagged = self.run_mcnemar_test(res_latest, res_lagged, label="Latest vs Lagged")
+        p_xgb_with_params_vs_lagged= self.run_mcnemar_test(res_xgb_with_params, res_lagged, label="XGBoost (with params) vs Lagged")
+        p_xgb_with_params_vs_latest= self.run_mcnemar_test(res_xgb_with_params, res_latest, label="XGBoost (with params) vs Latest")
+        p_xgb_with_params_vs_p_xgb= self.run_mcnemar_test(res_xgb_with_params, res_xgb_no_params, label="XGBoost (with params) vs XGBoost ")
+        p_xgb_lagonly_vs_lagged= self.run_mcnemar_test(res_xgb_lagonly, res_lagged, label="XGBoost (lag only) vs Lagged")
+        p_xgb_lagonly_vs_latest= self.run_mcnemar_test(res_xgb_lagonly, res_latest, label="XGBoost (lag only) vs Latest")
+        p_xgb_lagonly_vs_p_xgb= self.run_mcnemar_test(res_xgb_lagonly, res_xgb_no_params, label="XGBoost (lag only) vs XGBoost ")
+        p_xgb_lagonly_vs_p_xgb_with_params= self.run_mcnemar_test(res_xgb_lagonly, res_xgb_with_params, label= "XGBoost (lag only) vs XGboost (with params)")
+        p_xgb_lagonly_params_vs_lagged = self.run_mcnemar_test(res_xgb_lagonly_params, res_lagged, label="XGBoost (lagonly, with params) vs Lagged")
+        p_xgb_lagonly_params_vs_latest = self.run_mcnemar_test(res_xgb_lagonly_params, res_latest, label="XGBoost (lagonly with params) vs Latest")
+        p_xgb_lagonly_params_vs_p_xgb = self.run_mcnemar_test(res_xgb_lagonly_params, res_xgb_no_params, label="XGBoost (lagonly with params) vs XGBoost")
+        p_xgb_lagonly_params_vs_p_xgb_with_params = self.run_mcnemar_test(res_xgb_lagonly_params, res_xgb_with_params, label="XGBoost (lagonly with params) vs XGBoost (with params)")
+        p_xgb_lagonly_params_vs_p_xgb_lagonly = self.run_mcnemar_test(res_xgb_lagonly_params, res_xgb_lagonly, label="XGBoost (lagonly with params) vs XGBoost (lag only)")
+
+
 
         def format_p(p):
             return "< 0.0000000001" if p < 1e-10 else f"{p:.10f}"
@@ -102,6 +115,19 @@ class ClassificationPipeline:
             ["XGBoost vs Lagged", format_p(p_xgb_vs_lagged), "✓" if p_xgb_vs_lagged < 0.05 else "✗"],
             ["XGBoost vs Latest", format_p(p_xgb_vs_latest), "✓" if p_xgb_vs_latest < 0.05 else "✗"],
             ["Latest vs Lagged", format_p(p_latest_vs_lagged), "✓" if p_latest_vs_lagged < 0.05 else "✗"]
+            ["XGBoost (with params) vs Lagged", format_p(p_xgb_with_params_vs_lagged), "✓" if p_xgb_with_params_vs_lagged < 0.05 else "✗"],
+            ["XGBoost (with params) vs Latest", format_p(p_xgb_with_params_vs_latest), "✓" if p_xgb_with_params_vs_latest < 0.05 else "✗"],
+            ["XGBoost (with params) vs XGBoost (default)", format_p(p_xgb_with_params_vs_p_xgb), "✓" if p_xgb_with_params_vs_p_xgb < 0.05 else "✗"],
+            ["XGBoost (lag only) vs Lagged", format_p(p_xgb_lagonly_vs_lagged), "✓" if p_xgb_lagonly_vs_lagged < 0.05 else "✗"],
+            ["XGBoost (lag only) vs Latest", format_p(p_xgb_lagonly_vs_latest), "✓" if p_xgb_lagonly_vs_latest < 0.05 else "✗"],
+            ["XGBoost (lag only) vs XGBoost", format_p(p_xgb_lagonly_vs_p_xgb), "✓" if p_xgb_lagonly_vs_p_xgb < 0.05 else "✗"],
+            ["XGBoost (lag only) vs XGBoost (with params)", format_p(p_xgb_lagonly_vs_p_xgb_with_params), "✓" if p_xgb_lagonly_vs_p_xgb_with_params < 0.05 else "✗"],
+            ["XGBoost (lag only with params) vs Lagged", format_p(p_xgb_lagonly_params_vs_lagged), "✓" if p_xgb_lagonly_params_vs_lagged < 0.05 else "✗"],
+            ["XGBoost (lag only with params) vs Latest", format_p(p_xgb_lagonly_params_vs_latest), "✓" if p_xgb_lagonly_params_vs_latest < 0.05 else "✗"],
+            ["XGBoost (lag only with params) vs XGBoost", format_p(p_xgb_lagonly_params_vs_p_xgb), "✓" if p_xgb_lagonly_params_vs_p_xgb < 0.05 else "✗"],
+            ["XGBoost (lag only with params) vs XGBoost (with params)", format_p(p_xgb_lagonly_params_vs_p_xgb_with_params), "✓" if p_xgb_lagonly_params_vs_p_xgb_with_params < 0.05 else "✗"],
+            ["XGBoost (lagonly with params) vs XGBoost (lag only)", format_p(p_xgb_lagonly_params_vs_p_xgb_lagonly), "✓" if p_xgb_lagonly_params_vs_p_xgb_lagonly < 0.05 else "✗"],
+
         ], headers=["Comparison", "p-value", "Significant?"], tablefmt="fancy_grid"))
 
 

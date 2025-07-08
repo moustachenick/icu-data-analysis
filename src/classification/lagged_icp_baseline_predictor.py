@@ -1,79 +1,102 @@
 import pandas as pd
 from sklearn.metrics import classification_report, confusion_matrix
-
+import numpy as np
 
 class LaggedICPBaselinePredictor:
     """
-    A simplified rule-based baseline predictor for Intracranial Pressure (ICP) classification.
-
-    This predictor computes the row-wise mean of a selected number of lagged ICP values
-    (e.g., icp_lag_1 to icp_lag_5) for each sample. If the average exceeds a specified threshold,
-    it classifies the sample as abnormal (1), otherwise as normal (0).
-
-    This approach mimics real-time decision making by only using past ICP values (lags)
-    that would be available at prediction time.
-
-    Attributes:
-        threshold (float): Decision threshold for binary classification.
-        max_lag (int): The number of lagged ICP features to include (starting from icp_lag_1).
+    Baseline predictor using the daily mean ICP value.
+    If the daily mean ICP exceeds a specified threshold (e.g. 22), predict abnormal (1), else normal (0).
     """
-
-    def __init__(self, decision_threshold=15, max_lag=5):
+    def __init__(self, threshold=22):
         """
-        Initialize the baseline predictor.
-
-        Args:
-            decision_threshold (float): Threshold above which the mean ICP is considered abnormal.
-            max_lag (int): Number of lagged features to use (e.g., use icp_lag_1 to icp_lag_max_lag).
+        Initialize the baseline with a threshold for classifying binary ICP.
         """
-        self.threshold = decision_threshold
-        self.max_lag = max_lag
+        self.threshold = threshold
+        self.daily_icp_means = None
 
     def _select_features(self, X):
         """
-        Select the required columns: patient_id, timestamp, and the specified ICP lag features.
-
-        Args:
-            X (pd.DataFrame): Input feature dataframe.
-
-        Returns:
-            pd.DataFrame: Subset of X containing only relevant columns.
+        Select only the columns needed for the daily mean baseline, including all icp_lag_* columns.
         """
         required = ["patient_id", "timestamp"]
-        lagged = [f"icp_lag_{i}" for i in range(1, self.max_lag + 1)]
+        lagged = [col for col in X.columns if col.startswith("icp_lag_")]
         return X[[col for col in required + lagged if col in X.columns]].copy()
+
+    def _compute_daily_means(self, X: pd.DataFrame) -> pd.DataFrame:
+        X = self._select_features(X)
+        X["date"] = pd.to_datetime(X["timestamp"]).dt.date
+        lagged = [col for col in X.columns if col.startswith("icp_lag_")]
+        melted = X.melt(id_vars=["patient_id", "date"], value_vars=lagged,
+                        var_name="lag", value_name="icp_lag_value")
+        melted = melted.dropna(subset=["icp_lag_value"])
+        daily_means = (
+            melted.groupby(["patient_id", "date"])["icp_lag_value"]
+            .mean()
+            .reset_index()
+            .rename(columns={"icp_lag_value": "daily_icp_lag_mean"})
+        )
+        return daily_means
+
+    def fit(self, X: pd.DataFrame):
+        self.daily_icp_means = self._compute_daily_means(X)
 
     def run_pipeline(self, X_test: pd.DataFrame, y_test: pd.Series):
         """
-        Apply the baseline predictor to the test set.
+        Evaluate the baseline predictor on the test set.
 
-        For each row, compute the mean of the specified lagged ICP values, compare it
-        to the threshold, and generate a binary prediction.
+        Steps:
+        1. Checks if the model has been fitted (daily means computed).
+        2. Selects relevant features from X_test and extracts the date from the timestamp.
+        3. Melts the lagged ICP columns into a long format for aggregation.
+        4. Computes the mean of lagged ICP values per patient per day (predicted means).
+        5. Aggregates the true labels per patient per day (using max as the daily label).
+        6. Merges predicted means with true labels on patient and date.
+        7. Binarizes the true and predicted means using the threshold.
+        8. Returns a dictionary with the confusion matrix, classification report, and arrays of true and predicted labels.
 
         Args:
-            X_test (pd.DataFrame): Test feature set containing lagged ICP columns.
-            y_test (pd.Series): Ground truth binary icp_binary values.
+            X_test (pd.DataFrame): Test features.
+            y_test (pd.Series): True labels for the test set.
 
         Returns:
-            dict: Contains predictor name, confusion matrix, classification report, and
-                  arrays of binary true and predicted labels.
+            dict: Contains model name, confusion matrix, classification report, y_true, and y_pred arrays.
         """
+        if self.daily_icp_means is None:
+            raise ValueError("Must call fit() before run_pipeline().")
+
         X = self._select_features(X_test)
-        lagged_cols = [col for col in X.columns if col.startswith("icp_lag_")]
+        X["date"] = pd.to_datetime(X["timestamp"]).dt.date
 
-        # Row-wise mean of the lagged values
-        icp_means = X[lagged_cols].mean(axis=1, skipna=True)
+        lagged = [col for col in X.columns if col.startswith("icp_lag_")]
+        melted = X.melt(id_vars=["patient_id", "date"], value_vars=lagged,
+                        var_name="lag", value_name="icp_lag_value")
+        melted = melted.dropna(subset=["icp_lag_value"])
 
-        # Apply threshold for binary classification
-        y_pred_bin = (icp_means >= self.threshold).astype(int)
-        y_true_bin = y_test.astype(int)
+        # Compute predicted means
+        pred_means = (
+            melted.groupby(["patient_id", "date"])["icp_lag_value"]
+            .mean()
+            .reset_index()
+            .rename(columns={"icp_lag_value": "daily_icp_lag_mean"})
+        )
+
+        # Derive true labels per patient/day
+        y_test_df = X_test.copy()
+        y_test_df["date"] = pd.to_datetime(y_test_df["timestamp"]).dt.date
+        y_test_df["y_true"] = y_test.values
+        y_true_agg = y_test_df.groupby(["patient_id", "date"])["y_true"].max().reset_index()
+
+        # Join predictions with true labels
+        merged = pred_means.merge(y_true_agg, on=["patient_id", "date"], how="inner")
+
+        y_true_bin = (merged["y_true"] >= self.threshold).astype(int)
+        y_pred_bin = (merged["daily_icp_lag_mean"] >= self.threshold).astype(int).fillna(0)
 
         return {
             'name': 'LaggedICPBaselinePredictor',
             'confusion_matrix': confusion_matrix(y_true_bin, y_pred_bin),
-            'classification_report': classification_report(
-                y_true_bin, y_pred_bin, output_dict=True, zero_division=0
-            ),
-            'y_true': y_true_bin.to_numpy(),
-            'y_pred': y_pred_bin.to_numpy()
+            'classification_report': classification_report(y_true_bin, y_pred_bin, output_dict=True, zero_division=0),
+            'y_true': np.array(y_true_bin),
+            'y_pred': np.array(y_pred_bin),
+            
         }
