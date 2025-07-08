@@ -114,7 +114,7 @@ class ClassificationPipeline:
         print(tabulate([
             ["XGBoost vs Lagged", format_p(p_xgb_vs_lagged), "✓" if p_xgb_vs_lagged < 0.05 else "✗"],
             ["XGBoost vs Latest", format_p(p_xgb_vs_latest), "✓" if p_xgb_vs_latest < 0.05 else "✗"],
-            ["Latest vs Lagged", format_p(p_latest_vs_lagged), "✓" if p_latest_vs_lagged < 0.05 else "✗"]
+            ["Latest vs Lagged", format_p(p_latest_vs_lagged), "✓" if p_latest_vs_lagged < 0.05 else "✗"],
             ["XGBoost (with params) vs Lagged", format_p(p_xgb_with_params_vs_lagged), "✓" if p_xgb_with_params_vs_lagged < 0.05 else "✗"],
             ["XGBoost (with params) vs Latest", format_p(p_xgb_with_params_vs_latest), "✓" if p_xgb_with_params_vs_latest < 0.05 else "✗"],
             ["XGBoost (with params) vs XGBoost (default)", format_p(p_xgb_with_params_vs_p_xgb), "✓" if p_xgb_with_params_vs_p_xgb < 0.05 else "✗"],
