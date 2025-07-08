@@ -42,14 +42,6 @@ class ClassificationPipeline:
         
         results = []
         
-        # For LaggedICPBaselinePredictor, we need the original ICP values
-        # Convert binary back to continuous for this predictor
-        # y_test_continuous = X_test["icp"] if "icp" in X_test.columns else None
-        # if y_test_continuous is None:
-        #     # If icp is not in X_test, we need to handle this case
-        #     # For now, we'll skip this predictor or handle it differently
-        #     print("Warning: ICP column not found in X_test for LaggedICPBaselinePredictor")
-        # else:
         daily_mean_predictor = LaggedICPBaselinePredictor()
         results.append(daily_mean_predictor.run_pipeline(X_test, y_test))
 
@@ -77,8 +69,8 @@ class ClassificationPipeline:
 
         print("\n=== CLASSIFICATION RESULTS ===")
         print(f"Number of test samples: {len(X_test)}")
-        print(f"Number of positive samples (icp >= 22): {sum(y_test >= 22)}")
-        print(f"Number of negative samples (icp < 22): {sum(y_test < 22)}")
+        print(f"Number of positive samples (icp_binary is 1): {sum(y_test == 1)}")
+        print(f"Number of negative samples (icp_binary is 0): {sum(y_test == 0)}")
         print("================================\n")
 
         res_lagged = results[0]
