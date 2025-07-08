@@ -57,7 +57,7 @@ class ClassificationPipeline:
         results.append(baseline_predictor.run_pipeline(X_test, y_test))
 
         xg_boost_predictor_no_params = XGBoostClassificationPredictor()
-        results.append(xg_boost_predictor_no_params.run_pipeline(X_train, X_test, y_train, y_test))
+        results.append(xg_boost_predictor_no_params.run_pipelin e(X_train, X_test, y_train, y_test))
 
         xg_boost_predictor = XGBoostClassificationPredictor(model_params=self.xg_boost_model_params)
         results.append(xg_boost_predictor.run_pipeline(X_train, X_test, y_train, y_test))
