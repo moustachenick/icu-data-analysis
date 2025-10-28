@@ -1,2 +1,3 @@
 *
 !.gitignore
+!pathologies_filtered.csv

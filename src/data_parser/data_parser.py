@@ -79,6 +79,8 @@ class DataParser:
                 self.parse_file(file, file_name[:-4].lower().replace(" ", "_"))
         # Create the final data
         self.create_final_data()
+        # Filter patients based on pathologies filter
+        self.filter_patients()
         # Fix missing values
         self.fix_missing_values()
         # save the final data to a file
@@ -106,7 +108,6 @@ class DataParser:
     def parse_episodes_with_high_icp(self, file):
         with open(file, "r", encoding="utf-8-sig") as f:
             for line in Helpers.non_blank_lines(f):
-                # print(f"Processing line: {line}")
                 patient_id, date_of_birth, _, _, _, _, _, _ = line.split(",")
                 patient_id = patient_id.strip().replace('"', "")
                 date_of_birth = date_of_birth.strip().replace('"', "")
@@ -215,6 +216,75 @@ class DataParser:
                 row[self.column_index["date_of_birth"]] = patient_data["date_of_birth"]
                 # Add the row to the final_data list
                 self.combined_data.append(row)
+
+    def filter_patients(self):
+        # This method filters out patients based on certain criteria.
+        # It uses the data/pathologies_filter.csv file to determine which patients to exclude.
+        # Any patient who exists in the current data but is not listed in the filter file will be removed from the final dataset.
+        
+        # Read the pathologies filter file to get the list of valid patient IDs
+        pathologies_file = os.path.join(self.data_dir, "pathologies_filtered.csv")
+        valid_patient_ids = set()
+        
+        try:
+            with open(pathologies_file, "r", encoding="utf-8-sig") as f:
+                # Skip the header row
+                next(f)
+                for line in Helpers.non_blank_lines(f):
+                    patient_id, _ = line.split(",", 1)
+                    patient_id = patient_id.strip().replace('"', "")
+                    valid_patient_ids.add(patient_id)
+            
+            print(f"\n\nFound {len(valid_patient_ids)} valid patient IDs in pathologies filter")
+            
+            # Calculate how many patients would be filtered out
+            original_count = len(self.combined_data) - 1  # Exclude header from count
+            patients_to_keep = 0
+            
+            for i, row in enumerate(self.combined_data[1:], 1):  # Skip header row
+                patient_id = str(row[self.column_index["patient_id"]])
+                if patient_id in valid_patient_ids:
+                    patients_to_keep += 1
+            
+            patients_to_remove = original_count - patients_to_keep
+            
+            # Ask user for confirmation
+            print(f"Current dataset contains {original_count} total patients")
+            print(f"Filtering would remove {patients_to_remove} patients")
+            print(f"Filtering would keep {patients_to_keep} patients")
+            
+            if patients_to_remove > 0:
+                while True:
+                    user_input = input("\nDo you want to proceed with patient filtering? (y/n): ").strip().lower()
+                    if user_input in ['y', 'yes']:
+                        break
+                    elif user_input in ['n', 'no']:
+                        print("Skipping patient filtering")
+                        return
+                    else:
+                        print("Please enter 'y' for yes or 'n' for no")
+            else:
+                print("No patients to remove - all patients are in the filter list")
+                return
+            
+            # Perform the filtering
+            filtered_data = [self.combined_data[0]]  # Keep the header
+            
+            for i, row in enumerate(self.combined_data[1:], 1):  # Skip header row
+                patient_id = str(row[self.column_index["patient_id"]])
+                if patient_id in valid_patient_ids:
+                    filtered_data.append(row)
+            
+            self.combined_data = filtered_data
+            
+            print(f"Patient filtering completed: kept {patients_to_keep} out of {original_count} patients")
+            
+        except FileNotFoundError:
+            print(f"Warning: Pathologies filter file not found at {pathologies_file}")
+            print("Proceeding without patient filtering")
+        except Exception as e:
+            print(f"Error reading pathologies filter file: {e}")
+            print("Proceeding without patient filtering")
 
     def fix_missing_values(self):
         # order the final data by patient id and then timestamp
