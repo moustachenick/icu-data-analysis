@@ -80,7 +80,7 @@ class DataParser:
         # Create the final data
         self.create_final_data()
         # Filter patients based on pathologies filter
-        self.filter_patients()
+        self.filter_instances()
         # Fix missing values
         self.fix_missing_values()
         # save the final data to a file
@@ -217,10 +217,10 @@ class DataParser:
                 # Add the row to the final_data list
                 self.combined_data.append(row)
 
-    def filter_patients(self):
-        # This method filters out patients based on certain criteria.
+    def filter_instances(self):
+        # This method filters out data instances based on certain criteria.
         # It uses the data/pathologies_filter.csv file to determine which patients to exclude.
-        # Any patient who exists in the current data but is not listed in the filter file will be removed from the final dataset.
+        # Any data instance for patients who are not listed in the filter file will be removed from the final dataset.
         
         # Read the pathologies filter file to get the list of valid patient IDs
         pathologies_file = os.path.join(self.data_dir, "pathologies_filtered.csv")
@@ -237,34 +237,34 @@ class DataParser:
             
             print(f"\n\nFound {len(valid_patient_ids)} valid patient IDs in pathologies filter")
             
-            # Calculate how many patients would be filtered out
+            # Calculate how many data instances would be filtered out
             original_count = len(self.combined_data) - 1  # Exclude header from count
-            patients_to_keep = 0
+            instances_to_keep = 0
             
             for i, row in enumerate(self.combined_data[1:], 1):  # Skip header row
                 patient_id = str(row[self.column_index["patient_id"]])
                 if patient_id in valid_patient_ids:
-                    patients_to_keep += 1
+                    instances_to_keep += 1
             
-            patients_to_remove = original_count - patients_to_keep
+            instances_to_remove = original_count - instances_to_keep
             
             # Ask user for confirmation
-            print(f"Current dataset contains {original_count} total patients")
-            print(f"Filtering would remove {patients_to_remove} patients")
-            print(f"Filtering would keep {patients_to_keep} patients")
+            print(f"Current dataset contains {original_count} total data instances")
+            print(f"Filtering would remove {instances_to_remove} data instances")
+            print(f"Filtering would keep {instances_to_keep} data instances")
             
-            if patients_to_remove > 0:
+            if instances_to_remove > 0:
                 while True:
-                    user_input = input("\nDo you want to proceed with patient filtering? (y/n): ").strip().lower()
+                    user_input = input("\nDo you want to proceed with data instance filtering? (y/n): ").strip().lower()
                     if user_input in ['y', 'yes']:
                         break
                     elif user_input in ['n', 'no']:
-                        print("Skipping patient filtering")
+                        print("Skipping data instance filtering")
                         return
                     else:
                         print("Please enter 'y' for yes or 'n' for no")
             else:
-                print("No patients to remove - all patients are in the filter list")
+                print("No data instances to remove - all instances are for patients in the filter list")
                 return
             
             # Perform the filtering
@@ -277,14 +277,14 @@ class DataParser:
             
             self.combined_data = filtered_data
             
-            print(f"Patient filtering completed: kept {patients_to_keep} out of {original_count} patients")
+            print(f"Data instance filtering completed: kept {instances_to_keep} out of {original_count} instances")
             
         except FileNotFoundError:
             print(f"Warning: Pathologies filter file not found at {pathologies_file}")
-            print("Proceeding without patient filtering")
+            print("Proceeding without data instance filtering")
         except Exception as e:
             print(f"Error reading pathologies filter file: {e}")
-            print("Proceeding without patient filtering")
+            print("Proceeding without data instance filtering")
 
     def fix_missing_values(self):
         # order the final data by patient id and then timestamp
