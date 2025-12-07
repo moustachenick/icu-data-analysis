@@ -1,4 +1,5 @@
 import os
+import re
 import numpy as np
 import pandas as pd
 from sklearn.impute import KNNImputer
@@ -8,6 +9,14 @@ from data_parser.time_series_processor import TimeSeriesProcessor
 
 
 class DataPreProcessor:
+
+    PATHOLOGIES_GROUPED_AS_OTHER = {
+        "cns infection",
+        "assdh",
+        "status epilepticus",
+        "intracranial hypertension due to acute leukemia",
+        "hydrocephalus",
+    }
 
     def __init__(self, raw_data_file_path):
         self.raw_data_file_path = raw_data_file_path
@@ -32,6 +41,8 @@ class DataPreProcessor:
         raw_data_file_path = self.raw_data_file_path
         # Read the data from the CSV file
         df = pd.read_csv(raw_data_file_path, engine='python')
+
+        df = self.add_pathology_one_hot_features(df)
 
         df = self.transform_all_columns_to_float(df)
 
@@ -78,6 +89,90 @@ class DataPreProcessor:
         df.to_csv(lagged_file_path, index=False)
 
         return df
+
+    def add_pathology_one_hot_features(self, df):
+        """
+        Optionally enrich the dataframe with one-hot encoded pathology columns using the pathologies_filtered.csv file.
+        Pathologies listed in PATHOLOGIES_GROUPED_AS_OTHER are grouped under a single "pathology_other" column.
+        """
+        try:
+            user_input = input("Do you want to add one-hot encoded pathology columns? (y/n): ").strip().lower()
+        except Exception:
+            # In non-interactive contexts, default to skipping.
+            return df
+
+        if user_input not in ("y", "yes"):
+            print("Skipping pathology one-hot encoding.")
+            return df
+
+        pathologies_file = os.path.abspath(
+            os.path.join(os.path.dirname(self.raw_data_file_path), "pathologies_filtered.csv")
+        )
+
+        try:
+            pathologies_df = pd.read_csv(pathologies_file, dtype=str)
+        except FileNotFoundError:
+            print(f"Warning: pathologies_filtered.csv not found at {pathologies_file}. Skipping pathology one-hot encoding.")
+            return df
+        except Exception as e:
+            print(f"Error reading {pathologies_file}: {e}. Skipping pathology one-hot encoding.")
+            return df
+
+        if pathologies_df.shape[1] < 2:
+            print(f"Unexpected format for {pathologies_file}. Skipping pathology one-hot encoding.")
+            return df
+
+        patient_col = pathologies_df.columns[0]
+        pathology_col = pathologies_df.columns[1]
+
+        pathologies_df[patient_col] = pathologies_df[patient_col].astype(str).str.strip()
+        pathologies_df[pathology_col] = pathologies_df[pathology_col].astype(str).str.strip()
+
+        patient_to_pathology = dict(zip(pathologies_df[patient_col], pathologies_df[pathology_col]))
+
+        # Determine all unique pathologies (case-insensitive) excluding those grouped as "other".
+        unique_pathologies = {
+            p for p in pathologies_df[pathology_col].dropna().unique()
+            if p.strip() and p.lower() not in self.PATHOLOGIES_GROUPED_AS_OTHER
+        }
+
+        if not unique_pathologies and not self.PATHOLOGIES_GROUPED_AS_OTHER:
+            print("No pathologies found to encode. Skipping pathology one-hot encoding.")
+            return df
+
+        print(f"Found {len(unique_pathologies)} pathologies to one-hot encode. Grouping the following as 'other': {', '.join(sorted(self.PATHOLOGIES_GROUPED_AS_OTHER))}")
+
+        def sanitize(name):
+            name = name.lower().strip().replace(" ", "_")
+            name = re.sub(r"[^0-9a-zA-Z_]", "", name)
+            return name
+
+        enriched_df = df.copy()
+
+        # Initialize all pathology columns to 0.
+        for pathology in sorted(unique_pathologies):
+            col_name = f"pathology_{sanitize(pathology)}"
+            enriched_df[col_name] = 0
+
+        other_col = "pathology_other"
+        enriched_df[other_col] = 0
+
+        # Assign one-hot values per patient based on mapping.
+        for idx, patient_id in enriched_df["patient_id"].astype(str).items():
+            pathology = patient_to_pathology.get(patient_id, "").strip()
+            if not pathology:
+                continue
+            if pathology.lower() in self.PATHOLOGIES_GROUPED_AS_OTHER:
+                enriched_df.at[idx, other_col] = 1
+                continue
+            col_name = f"pathology_{sanitize(pathology)}"
+            if col_name in enriched_df.columns:
+                enriched_df.at[idx, col_name] = 1
+            else:
+                # Pathology not anticipated when initializing; treat as other to avoid losing signal.
+                enriched_df.at[idx, other_col] = 1
+
+        return enriched_df
 
     def transform_all_columns_to_float(self, df):
         # Convert all columns to float, except for 'patient_id', 'date_of_birth', and 'timestamp'
