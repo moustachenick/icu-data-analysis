@@ -36,7 +36,7 @@ have multiple Python versions installed on your machine and you can create isola
 In order to do so, you can run the following commands:
 
 ```bash
-python -m venv venv
+py -3.12 -m venv venv
 ```
 
 This will create a virtual environment in the `venv` directory. You can activate it by running:
@@ -108,6 +108,9 @@ conda run -n icu-data-analysis python src/main.py
 ```bash
 # Windows
 venv/Scripts/python src/main.py
+
+# clean generated files & run:
+./clean_generated_files.sh && venv/Scripts/python.exe src/main.py
 
 # Linux
 venv/bin/python src/main.py

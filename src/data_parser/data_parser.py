@@ -225,17 +225,60 @@ class DataParser:
         # Read the pathologies filter file to get the list of valid patient IDs
         pathologies_file = os.path.join(self.data_dir, "pathologies_filtered.csv")
         valid_patient_ids = set()
+        patient_pathologies = {}
+        available_pathologies = set()
         
         try:
             with open(pathologies_file, "r", encoding="utf-8-sig") as f:
                 # Skip the header row
                 next(f)
                 for line in Helpers.non_blank_lines(f):
-                    patient_id, _ = line.split(",", 1)
+                    patient_id, pathology = line.split(",", 1)
                     patient_id = patient_id.strip().replace('"', "")
+                    pathology = pathology.strip().replace('"', "")
                     valid_patient_ids.add(patient_id)
+                    patient_pathologies[patient_id] = pathology
+                    if pathology:
+                        available_pathologies.add(pathology)
             
             print(f"\n\nFound {len(valid_patient_ids)} valid patient IDs in pathologies filter")
+            selected_pathology = None
+            if available_pathologies:
+                available_list = ", ".join(sorted(available_pathologies))
+                print(f"Available pathologies for filtering: {available_list}")
+                while True:
+                    pathology_input = input(
+                        "Enter a pathology code to filter by or press Enter to include all: "
+                    ).strip()
+                    if pathology_input == "":
+                        break
+
+                    normalized_input = pathology_input.lower()
+                    matching_pathology = next(
+                        (p for p in available_pathologies if p.lower() == normalized_input),
+                        None,
+                    )
+                    if matching_pathology:
+                        selected_pathology = matching_pathology
+                        valid_patient_ids = {
+                            pid
+                            for pid, pathology in patient_pathologies.items()
+                            if pathology.lower() == normalized_input
+                        }
+                        print(
+                            f"Filtering dataset to patients with pathology '{selected_pathology}'"
+                        )
+                        break
+
+                    print(
+                        f"Pathology '{pathology_input}' not found. Available options: {available_list}"
+                    )
+
+            if selected_pathology and not valid_patient_ids:
+                print(
+                    f"No patients found with pathology '{selected_pathology}'. Skipping data instance filtering."
+                )
+                return
             
             # Calculate how many data instances would be filtered out
             original_count = len(self.combined_data) - 1  # Exclude header from count
