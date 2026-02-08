@@ -171,4 +171,4 @@ if __name__ == "__main__":
             print("Invalid choice. Defaulting to regression.")
             args.mode = "regression"
 
-    main(args.mode, args.hours)
+    main(args.mode, args.hours) 

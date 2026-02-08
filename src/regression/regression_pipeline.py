@@ -256,6 +256,10 @@ class RegressionPipeline:
             results: Dictionary containing evaluation results, feature importance, and cross-validation results.
         """
         
+        lag_cols = [c for c in X_train.columns if ('_lag_' in c) or (c in ["patient_id", "timestamp"])]
+        X_train = X_train[lag_cols]
+        X_test  = X_test[lag_cols]
+        
         self.__train_models(X_train, y_train)
         evaluation_results = self.__evaluate_models(X_test, y_test)
         self.__compute_feature_importance(X_train, y_train)
