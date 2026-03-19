@@ -1,7 +1,7 @@
 """
 Generate descriptive statistics for the classification dataset.
 
-Prints a formatted console table and a markdown table for copy-paste into the manuscript.
+Prints a formatted console table and a markdown table.
 """
 
 import sys
