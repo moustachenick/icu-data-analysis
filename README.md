@@ -18,7 +18,7 @@ This is a project that reads ICU data files, generates train/test datasets, and 
 You can install Python using [Miniconda](https://docs.conda.io/en/latest/miniconda.html) or [Anaconda](https://www.anaconda.com/products/distribution).
 After installing Miniconda/Anaconda, you can create a new environment with the desired Python version by running:
 
-```bash
+```shell
 conda env create -f environment.yml
 
 conda activate icu-data-analysis
@@ -35,7 +35,7 @@ An easy solution is to use [Python Virtual Environments](https://docs.python.org
 have multiple Python versions installed on your machine and you can create isolated environments for each project.
 In order to do so, you can run the following commands:
 
-```bash
+```shell
 py -3.12 -m venv venv
 ```
 
@@ -43,20 +43,20 @@ This will create a virtual environment in the `venv` directory. You can activate
 
 #### For Linux
 
-```bash
+```shell
 source venv/bin/activate
 ```
 
 #### For Windows
 
-```bash
+```shell
 # Windows
 .\venv\Scripts\activate.bat # or ./venv/Scripts/activate.bat (depending on your terminal configuration)
 ```
 
 After you have activated the Python environment, you can install the dependencies by running:
 
-```bash
+```shell
 # Windows
 venv/Scripts/pip install -r requirements.txt
 
@@ -94,7 +94,7 @@ running:
 
 ### Miniconda/Anaconda Option
 
-```bash
+```shell
 conda activate icu-data-analysis
 
 python src/main.py
@@ -105,7 +105,7 @@ conda run -n icu-data-analysis python src/main.py
 
 ### Virtual Environment Option
 
-```bash
+```shell
 # Windows
 venv/Scripts/python src/main.py
 
@@ -118,7 +118,7 @@ venv/bin/python src/main.py
 
 ### Native Python Option
 
-```bash
+```shell
 python src/main.py
 ```
 
@@ -197,7 +197,7 @@ The project includes some basic testing using the `pytest` package and the `unit
 
 You can run the tests by running:
 
-```bash
+```shell
 # Windows
 venv/Scripts/pytest tests/
 

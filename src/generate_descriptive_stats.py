@@ -61,21 +61,8 @@ UNITS = {
     "respiration_rate":     "breaths/min",
 }
 
-NORMAL_RANGES = {
-    "icp":                  "0–10",
-    "cpp":                  "50–70",
-    "glucose":              "70–140",
-    "haemoglobin":          "12–17",
-    "heart_rate":           "60–100",
-    "mean_blood_pressure":  "70–100",
-    "paco2":                "35–45",
-    "pao2":                 "75–100",
-    "peep":                 "0–5",
-    "ph":                   "7.35–7.45",
-    "spo2":                 "95–100",
-    "temperature":          "36.5–37.5",
-    "respiration_rate":     "12–20",
-}
+AGE_BINS   = [0, 18, 35, 45, 55, 65, 75, 85, float("inf")]
+AGE_LABELS = ["<18", "18–34", "35–44", "45–54", "55–64", "65–74", "75–84", "85+"]
 
 
 def cohort_summary(df: pd.DataFrame) -> None:
@@ -100,6 +87,38 @@ def cohort_summary(df: pd.DataFrame) -> None:
     print()
 
 
+def patient_summary(df: pd.DataFrame) -> None:
+    if "patient_id" not in df.columns or "date_of_birth" not in df.columns or "timestamp" not in df.columns:
+        return
+
+    # One row per patient; use first measurement timestamp as admission date proxy
+    first_ts = (
+        pd.to_datetime(df["timestamp"])
+        .groupby(df["patient_id"])
+        .min()
+        .rename("admission_ts")
+    )
+    patients = (
+        df.drop_duplicates(subset="patient_id")
+        .set_index("patient_id")[["date_of_birth"]]
+        .join(first_ts)
+    )
+    patients["date_of_birth"] = pd.to_datetime(patients["date_of_birth"])
+    patients["age"] = (patients["admission_ts"] - patients["date_of_birth"]).dt.days / 365.25
+
+    n = len(patients)
+    patients["age_group"] = pd.cut(patients["age"], bins=AGE_BINS, labels=AGE_LABELS, right=False)
+    counts = patients["age_group"].value_counts().reindex(AGE_LABELS, fill_value=0)
+
+    rows = [
+        {"Age Group": label, "N": count, "%": f"{100 * count / n:.1f}%"}
+        for label, count in counts.items()
+    ]
+    age_df = pd.DataFrame(rows)
+    DataFramePrinter.print_dataframe_tabulated(age_df, title="Patient Demographics — Age at Admission")
+    print()
+
+
 def build_stats_df(df: pd.DataFrame) -> pd.DataFrame:
     present_cols = [c for c in CLINICAL_COLUMNS if c in df.columns]
     total_rows = len(df)
@@ -112,12 +131,9 @@ def build_stats_df(df: pd.DataFrame) -> pd.DataFrame:
         rows.append({
             "Variable": DISPLAY_NAMES[col],
             "Unit": UNITS[col],
-            "Normal Range": NORMAL_RANGES[col],
             "Mean": round(series.mean(), 2),
             "Std": round(series.std(), 2),
             "Median": round(series.median(), 2),
-            "Min": round(series.min(), 2),
-            "Max": round(series.max(), 2),
             "Missing %": f"{missing_pct:.2f}%",
         })
 
@@ -130,6 +146,7 @@ def main() -> None:
     print(f"Loaded {len(df):,} rows, {df.shape[1]} columns.")
 
     cohort_summary(df)
+    patient_summary(df)
 
     stats_df = build_stats_df(df)
 

@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 from sklearn.impute import KNNImputer
 from pathlib import Path
+from tabulate import tabulate
 
 from data_parser.time_series_processor import TimeSeriesProcessor
 
@@ -184,6 +185,26 @@ class DataPreProcessor:
         return df
 
     @staticmethod
+    def print_missing_value_table(df: pd.DataFrame, title: str) -> None:
+        """Print a per-column missing value count and percentage, skipping non-clinical columns."""
+        skip_prefixes = ("pathology_",)
+        skip_cols = {"patient_id", "date_of_birth", "timestamp"}
+        total = len(df)
+        rows = []
+        for col in df.columns:
+            if col in skip_cols or any(col.startswith(p) for p in skip_prefixes):
+                continue
+            n_missing = df[col].isna().sum()
+            rows.append({
+                "Variable": col,
+                "Missing N": int(n_missing),
+                "Missing %": f"{100.0 * n_missing / total:.2f}%",
+            })
+        print(f"\n{title}\n" + "=" * len(title))
+        print(tabulate(rows, headers="keys", tablefmt="fancy_grid"))
+        print()
+
+    @staticmethod
     def print_percentages_of_rows_with_missing_values(dataframe):
         # Function to print the percentage of rows that have more than 1 column with missing values
         # and the percentage of rows that have exactly 1 column with missing values.
@@ -216,6 +237,7 @@ class DataPreProcessor:
         print()
         print('Percentage of rows with missing values after the standardization:',
               self.print_percentages_of_rows_with_missing_values(df))
+        self.print_missing_value_table(df, "Missing Values per Column — After Standardization")
         return df
 
     def drop_columns_with_high_missing_values(self, df):
@@ -224,6 +246,10 @@ class DataPreProcessor:
         :param df: DataFrame to process
         :return: DataFrame with columns dropped
         """
+        self.print_missing_value_table(df, "Missing Values per Column — Before Dropping")
+        rr_missing = df['respiration_rate'].isna().sum()
+        rr_pct = 100.0 * rr_missing / len(df)
+        print(f"Dropping 'respiration_rate': {rr_missing:,} missing rows out of {len(df):,} ({rr_pct:.2f}% null)")
         # drop the 'respiration_rate' column as it has many missing values, and is not needed for the analysis
         df.drop(columns=['respiration_rate'], inplace=True)
         print('\nDataFrame after dropping the "respiration_rate" column:')
@@ -234,6 +260,7 @@ class DataPreProcessor:
         print()
         print('DataFrame after dropping rows with more than 1 missing value:')
         self.print_percentages_of_rows_with_missing_values(filtered_df)
+        self.print_missing_value_table(filtered_df, "Missing Values per Column — After Dropping")
         return filtered_df
 
     def known_nearest_neighbor_imputer(self, filtered_df):
@@ -241,6 +268,8 @@ class DataPreProcessor:
         # We will fill these missing values, by finding the nearest neighbor.
         # We can find the nearest neighbor to the row with the missing value and replace it with that value.
         # NOTE: We will use the nearest neighbor of any patient, not just the same patient.
+
+        self.print_missing_value_table(filtered_df, "Missing Values per Column — Before Imputation")
 
         # Separate the "date" and patient_id columns from the rest of the data
         # (since they are not useful for the imputation, we will add them back later)
@@ -280,6 +309,7 @@ class DataPreProcessor:
 
         print('\nDataFrame after imputing the missing values:')
         self.print_percentages_of_rows_with_missing_values(combined_df)
+        self.print_missing_value_table(combined_df, "Missing Values per Column — After Imputation")
 
         return combined_df
 
