@@ -13,16 +13,17 @@ Raw data comes from ICU monitoring devices stored as one `.txt` file per physiol
 
 ## Repository Structure
 
-```
+```text
 icu-data-analysis/
 ├── data/                              # All data files (source + generated)
 │   ├── ICP.txt, CPP.txt, ...          # Raw ICU measurements (one file per variable)
 │   ├── episodes with high icp.txt     # Source of date_of_birth per patient
 │   ├── pathologies_filtered.csv       # Patient ID → pathology mapping
 │   ├── final_data.csv                 # Generated: merged raw data
-│   ├── cleaned_df_lagged_*.csv        # Generated: preprocessed + lagged dataset
-│   ├── train_data_*.csv               # Generated: training split
-│   └── test_data_*.csv                # Generated: test split
+│   ├── cleaned_df_*.csv               # Generated: cleaned dataset (pre-impute, pre-lag)
+│   ├── train_data_*.csv               # Generated: training split (imputed + lagged)
+│   ├── validation_data_*.csv          # Generated: validation split (selection)
+│   └── test_data_*.csv                # Generated: test split (final held-out)
 ├── src/
 │   ├── main.py                        # Entry point and pipeline orchestrator
 │   ├── generate_descriptive_stats.py  # Standalone script for cohort statistics
@@ -79,21 +80,25 @@ Raw ICU .txt files (one per variable: ICP, CPP, Glucose, ...)
    Step 7: drop_columns_with_high_missing_values() — drop respiration_rate,
            then drop rows with >1 missing value
    Step 8: clean_icp_outliers()             — Z-score > 7
-   Step 9: known_nearest_neighbor_imputer() — KNN(n=1) fills rows with 1 null
-   Step 10: create_lagged_features()        — N hourly lag windows per variable
-   └─ → data/cleaned_df_lagged_{mode}.csv
+   (cleaning stops here — impute & lag now happen AFTER the split)
+   └─ → data/cleaned_df_{mode}.csv
         │
         ▼
- main.py — patient-level 80/20 train/test split (random_state=42)
+ main.py (build_split_datasets) — patient-level 60/20/20 train/val/test split (random_state=42)
+        │
+        ├─ causal_knn_impute(train, val, test)  — 1-NN, donors = complete TRAIN rows only,
+        │        donor timestamp ≤ target (no future / cross-split leakage)
+        ├─ add_lagged_features() per split      — N hourly lag windows per variable
         │
         ├─ [classification] BinaryDataProcessor.create_binary_data()
         │        — adds icp_binary (1 if icp ≥ 22, else 0), drops raw icp
         │
         ├─ → data/train_data_{mode}.csv
+        ├─ → data/validation_data_{mode}.csv
         ├─ → data/test_data_{mode}.csv
         │
-        ├─ [regression]  RegressionPipeline.run_pipeline()
-        └─ [classification] ClassificationPipeline.run_pipeline()
+        ├─ [regression]  RegressionPipeline.run_pipeline()   — select on val, report on test
+        └─ [classification] ClassificationPipeline.run_pipeline()  — select on val, report on test
                 │
                 ▼
           Model evaluation results printed to console
@@ -134,26 +139,31 @@ Merges 13 raw ICU variable files into a single time-aligned CSV.
 
 ### `data_parser/data_pre_processor.py` — `DataPreProcessor`
 
-Multi-step cleaning and feature engineering. Each step logs detailed diagnostics.
+Multi-step cleaning, then (post-split) causal imputation and feature engineering. Each step logs detailed diagnostics.
 
-**Constructor:** `DataPreProcessor(raw_data_file_path)`
+**Constructor:** `DataPreProcessor(raw_data_file_path, config)`
 
-**Main method:** `pre_process_dataset(hours, mode)` — all 10 steps, with result cached to `cleaned_df_lagged_{mode}.csv`.
+**Main method:** `pre_process_dataset(hours, mode)` — cleaning STEPS 1-6 only, cached to `cleaned_df_{mode}.csv`. Imputation and lagging are exposed as separate methods (`causal_knn_impute`, `add_lagged_features`) that `main.py` calls **after** the patient-level split.
 
-**Step details:**
+**Cleaning step details (in `pre_process_dataset`):**
 
 | Step | Method | Notes |
 |------|--------|-------|
-| 1 | `add_pathology_one_hot_features()` | Optional (interactive). Reads `pathologies_filtered.csv`. Groups rare pathologies under `pathology_other`. Column names: `pathology_{sanitized}`. |
-| 2 | `transform_all_columns_to_float()` | Skips `patient_id`, `date_of_birth`, `timestamp`. |
-| 3 | `delete_negative_icp_values()` | Removes rows where ICP < 0. |
-| 4 | _(inline)_ | `groupby('patient_id').filter(len > 2)` — drops patients with ≤2 measurements. |
-| 5 | `drop_rows_with_null_target_column()` | Drops rows with null `icp`. |
-| 6 | `standardize_missing_values()` | Replaces `[-1, '-1', '--', '-', '.', '/']` with `NaN`. Prints per-column missing table. |
-| 7 | `drop_columns_with_high_missing_values()` | Drops `respiration_rate` (always), then rows with >1 null. Prints before/after tables. |
-| 8 | `clean_icp_outliers()` | Z-score threshold = 7 (domain-appropriate for medical data). |
-| 9 | `known_nearest_neighbor_imputer()` | `KNNImputer(n_neighbors=1)` on rows with exactly 1 null. Prints before/after tables. |
-| 10 | `create_lagged_features()` | Delegates to `TimeSeriesProcessor`. |
+| — | `add_pathology_one_hot_features()` | Config-gated (`preprocessing.add_pathology_one_hot`). Reads `pathologies_filtered.csv`. Groups rare pathologies under `pathology_other`. |
+| — | `transform_all_columns_to_float()` | Skips `patient_id`, `date_of_birth`, `timestamp`. |
+| 1 | `delete_negative_icp_values()` | Removes rows where ICP < 0. |
+| 2 | _(inline)_ | `groupby('patient_id').filter(len > 2)` — drops patients with ≤2 measurements. |
+| 3 | `drop_rows_with_null_target_column()` | Drops rows with null `icp`. |
+| 4 | `standardize_missing_values()` | Replaces `[-1, '-1', '--', '-', '.', '/']` with `NaN`. Prints per-column missing table. |
+| 5 | `drop_columns_with_high_missing_values()` | Config-gated. Drops `respiration_rate` (always), then rows with >1 null. |
+| 6 | `clean_icp_outliers()` | Z-score threshold = 7 (domain-appropriate for medical data). |
+
+**Post-split methods (called from `main.py`):**
+
+| Method | Notes |
+|--------|-------|
+| `causal_knn_impute(train, val, test)` | 1-NN imputation of rows with exactly 1 null. Donor pool = complete **TRAIN** rows; donor `timestamp ≤ target` (no future/cross-split leakage). Prints a same-patient / future-donor diagnostic. |
+| `add_lagged_features(df, hours)` | Delegates to `TimeSeriesProcessor`, called once per split. |
 
 **Pathologies grouped as "other":**
 `cns infection`, `assdh`, `status epilepticus`, `intracranial hypertension due to acute leukemia`, `hydrocephalus`
@@ -322,7 +332,7 @@ Same as `BaselineMeanRegression` but restricts history to a rolling window of `d
 
 ### `generate_descriptive_stats.py`
 
-Standalone script (not part of the main pipeline). Reads `cleaned_df_lagged_classification.csv` and prints:
+Standalone script (not part of the main pipeline). Reads `cleaned_df_classification.csv` and prints:
 
 1. **Cohort summary** — total observations, unique patients, median observations per patient
 2. **Patient demographics** — age at admission by age band: `<18`, `18–34`, `35–44`, `45–54`, `55–64`, `65–74`, `75–84`, `85+`
@@ -352,12 +362,12 @@ DataFramePrinter.print_dataframe_tabulated(df, title="My Title")
 | `data_pre_processor.py` | Missing value sentinels | `[-1, '--', '-', '.', '/']` | Normalized to NaN |
 | `data_pre_processor.py` | `PATHOLOGIES_GROUPED_AS_OTHER` | 5 pathologies | Rare diagnoses consolidated |
 | `time_series_processor.py` | `hours` (default) | 5 | Lag feature lookback window |
-| `time_series_processor.py` | `KNNImputer(n_neighbors=1)` | 1 | Single nearest neighbour for imputation |
+| `data_pre_processor.py` | causal 1-NN imputation | 1 | Single nearest *past* train donor; no future/cross-split leakage |
 | `classification_pipeline.py` | `scale_pos_weight` | 6 | Approximate class imbalance ratio |
 | `classification_pipeline.py` | Baseline decision threshold | 15 mmHg | Rule-based classifier cutoff |
 | `regression_pipeline.py` | Lasso alpha | 0.1 | L1 regularisation strength |
-| `regression_pipeline.py` | `KFold` splits | 10 | Cross-validation folds |
-| `main.py` | Train/test split | 80/20 | Patient-level stratification |
+| `regression_pipeline.py` | `GroupKFold` splits | 10 | Patient-grouped CV folds (train only) |
+| `main.py` / `config.toml` | Train/val/test split | 60/20/20 | Patient-level; select on val, report on test |
 | `main.py` | `random_state` | 42 | Reproducibility |
 | `data_parser.py` | Peep default | 0 | Non-sentinel missing value for PEEP |
 | `data_parser.py` | Forward-fill window (general) | 30 min | Maximum gap to forward-fill |
@@ -372,25 +382,28 @@ The pipeline caches intermediate results to avoid reprocessing. Each cached file
 | File | Generated by | Reused by |
 |------|-------------|-----------|
 | `data/final_data.csv` | `DataParser.run()` | `DataPreProcessor` |
-| `data/cleaned_df_lagged_{mode}.csv` | `DataPreProcessor.pre_process_dataset()` | `main()` |
-| `data/train_data_{mode}.csv` | `main()` split logic | `main()` pipeline dispatch |
-| `data/test_data_{mode}.csv` | `main()` split logic | `main()` pipeline dispatch |
+| `data/cleaned_df_{mode}.csv` | `DataPreProcessor.pre_process_dataset()` | `main()` |
+| `data/train_data_{mode}.csv` | `main()` `build_split_datasets` | `main()` pipeline dispatch |
+| `data/validation_data_{mode}.csv` | `main()` `build_split_datasets` | `main()` pipeline dispatch |
+| `data/test_data_{mode}.csv` | `main()` `build_split_datasets` | `main()` pipeline dispatch |
 
 **To force a re-run of any step, delete the corresponding CSV file.** The `clean_generated_files.sh` script at the project root removes all generated files.
 
 ---
 
-## Interactive Prompts
+## Configuration (no interactive prompts)
 
-The pipeline has several `input()` calls that block non-interactive execution. These occur during preprocessing:
+The pipeline is fully **non-interactive** — all decisions come from `config.toml` (created
+from `config.example.toml` on first run, read by `helper/config.py`). The former `input()`
+calls have been removed. CLI `--mode`/`--hours` override the `[run]` section.
 
-| Location | Prompt | Effect if "y" | Effect if "n" |
-|----------|--------|---------------|---------------|
-| `DataParser.filter_instances()` | Filter by pathology? | Subset to chosen pathology | Keep all patients |
-| `DataPreProcessor.add_pathology_one_hot_features()` | Add one-hot pathology columns? | Adds `pathology_*` columns | Skips pathology encoding |
-| `DataPreProcessor.pre_process_dataset()` (classification only) | Drop columns with >1 missing? | Drops `respiration_rate` + sparse rows | Retains all rows |
-| `DataPreProcessor.pre_process_dataset()` (classification only) | Impute missing values? | Runs KNN imputation | Skips imputation |
-| `TimeSeriesProcessor.process_data()` (classification only) | Drop rows with null lags? | Drops incomplete lag rows | Retains them |
-| `main.py` (classification only) | Run 10-fold cross-validation? | Runs cross-validation | Skips CV |
-
-Regression mode (`--mode regression`) auto-answers "yes" to preprocessing steps to enable fully automated runs.
+| Config key | Replaces prompt | Default |
+|------------|-----------------|---------|
+| `parsing.filter_by_pathology` | Filter by pathology? | `""` (all) |
+| `parsing.apply_instance_filtering` | Proceed with instance filtering? | `true` |
+| `preprocessing.add_pathology_one_hot` | Add one-hot pathology columns? | `false` |
+| `preprocessing.drop_high_missing_columns` | Drop columns with >1 missing? | `true` |
+| `preprocessing.impute_missing_values` | Impute missing values? | `true` |
+| `preprocessing.drop_lagged_null_rows` | Drop rows with null lags? | `true` |
+| `classification.run_cross_validation` | Run 10-fold cross-validation? | `false` |
+| `split.test_size` / `split.val_size` | — (new) three-way split fractions | `0.2` / `0.2` |

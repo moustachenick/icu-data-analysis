@@ -11,7 +11,7 @@ import pandas as pd
 sys.path.insert(0, os.path.dirname(__file__))
 from helper.data_frame_printer import DataFramePrinter
 
-DATA_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "cleaned_df_lagged_classification.csv")
+DATA_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "cleaned_df_classification.csv")
 
 CLINICAL_COLUMNS = [
     "icp",

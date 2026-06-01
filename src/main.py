@@ -39,69 +39,99 @@ def main(config):
 
     print("Running the Data Preprocessing pipeline...\n")
     data_pre_processor = DataPreProcessor(raw_data_file_path, config)
-    cleaned_df_lagged = data_pre_processor.pre_process_dataset(hours, mode)
 
     train_data_path = os.path.join(data_dir_path, f"train_data_{mode}.csv")
+    val_data_path = os.path.join(data_dir_path, f"validation_data_{mode}.csv")
     test_data_path = os.path.join(data_dir_path, f"test_data_{mode}.csv")
 
-    if not os.path.exists(train_data_path) or not os.path.exists(test_data_path):
-        print("\nCreating train/test split and saving datasets...")
-        # Patient-level train/test split
-        unique_patients = cleaned_df_lagged["patient_id"].unique()
-        train_patients, test_patients = train_test_split(
-            unique_patients, train_size=0.8, random_state=42
-        )
-
-        # Filter rows by patient group
-        train_data = cleaned_df_lagged[cleaned_df_lagged["patient_id"].isin(train_patients)].copy()
-        test_data = cleaned_df_lagged[cleaned_df_lagged["patient_id"].isin(test_patients)].copy()
-
-        # For classification mode, create the binary column before saving
-        if mode == "classification":
-            binary_processor = BinaryDataProcessor()
-            train_data = binary_processor.create_binary_data(train_data)
-            test_data = binary_processor.create_binary_data(test_data)
-
-        train_data.to_csv(train_data_path, index=False)
-        test_data.to_csv(test_data_path, index=False)
-
-        print_dataset_statistics(train_data, test_data)
-    else:
-        print(f"\nTrain and test datasets for {mode} already exist. Skipping dataset creation.")
+    if all(os.path.exists(p) for p in (train_data_path, val_data_path, test_data_path)):
+        print(f"\nTrain/validation/test datasets for {mode} already exist. Skipping dataset creation.")
         train_data = pd.read_csv(train_data_path)
+        val_data = pd.read_csv(val_data_path)
         test_data = pd.read_csv(test_data_path)
+    else:
+        cleaned_df = data_pre_processor.pre_process_dataset(hours, mode)
+        train_data, val_data, test_data = build_split_datasets(cleaned_df, data_pre_processor, config)
+        train_data.to_csv(train_data_path, index=False)
+        val_data.to_csv(val_data_path, index=False)
+        test_data.to_csv(test_data_path, index=False)
+        print_dataset_statistics(train_data, val_data, test_data)
 
     if mode == "classification":
-        # For classification, separate features and target
-        if "icp_binary" not in train_data.columns or "icp_binary" not in test_data.columns:
-            raise ValueError("The 'icp_binary' column is missing in the train or test data. Please ensure the binary data is created correctly.")
-        
-        X_train = train_data.drop(columns=["icp_binary"])
-        y_train = train_data["icp_binary"]
-        X_test = test_data.drop(columns=["icp_binary"])
-        y_test = test_data["icp_binary"]
-        
+        for name, d in (("train", train_data), ("validation", val_data), ("test", test_data)):
+            if "icp_binary" not in d.columns:
+                raise ValueError(f"The 'icp_binary' column is missing in the {name} data. "
+                                 "Please ensure the binary data is created correctly.")
+
+        X_train, y_train = train_data.drop(columns=["icp_binary"]), train_data["icp_binary"]
+        X_val, y_val = val_data.drop(columns=["icp_binary"]), val_data["icp_binary"]
+        X_test, y_test = test_data.drop(columns=["icp_binary"]), test_data["icp_binary"]
+
         pipeline = ClassificationPipeline(data_dir_path)
-        pipeline.run_pipeline(X_train, X_test, y_train, y_test)
+        # Selection happens on the validation split; the test split is the final report.
+        pipeline.run_pipeline(X_train, X_val, X_test, y_train, y_val, y_test)
         if config.run_cross_validation:
-            # Reconstruct full X and y from train/test parts,
-            # because the cross-validation pipeline expects the full dataset
-            X = pd.concat([X_train, X_test], axis=0).reset_index(drop=True)
-            y = pd.concat([y_train, y_test], axis=0).reset_index(drop=True)
-            pipeline.run_cross_validation_pipeline(X, y)
+            # Secondary robustness check: patient-grouped CV on the TRAINING split only.
+            pipeline.run_cross_validation_pipeline(X_train, y_train)
     else:
-        # For regression, separate features and target
-        X_train = train_data.drop(columns=["icp"])
-        y_train = train_data["icp"]
-        X_test = test_data.drop(columns=["icp"])
-        y_test = test_data["icp"]
-        
-        run_regression_pipeline(X_train, X_test, y_train, y_test)
+        X_train, y_train = train_data.drop(columns=["icp"]), train_data["icp"]
+        X_val, y_val = val_data.drop(columns=["icp"]), val_data["icp"]
+        X_test, y_test = test_data.drop(columns=["icp"]), test_data["icp"]
+
+        run_regression_pipeline(X_train, X_val, X_test, y_train, y_val, y_test)
 
     print("\nICP Prediction pipeline completed. ✅")
 
 
-def print_dataset_statistics(train_data, test_data):
+def build_split_datasets(cleaned_df, data_pre_processor, config):
+    """
+    Build the three leak-free datasets from the cleaned (pre-impute, pre-lag) frame:
+    patient-level train/validation/test split -> causal train-fit imputation -> per-split
+    lagged features -> (classification) binary label. Patients are disjoint across splits.
+    """
+    mode, hours = config.mode, config.hours
+
+    print("\nCreating patient-level train/validation/test split...")
+    unique_patients = cleaned_df["patient_id"].unique()
+    # Carve out test patients first, then split the remainder into train/validation.
+    train_val_patients, test_patients = train_test_split(
+        unique_patients, test_size=config.test_size, random_state=42
+    )
+    val_relative = config.val_size / (1.0 - config.test_size)
+    train_patients, val_patients = train_test_split(
+        train_val_patients, test_size=val_relative, random_state=42
+    )
+
+    def subset(patient_ids):
+        return cleaned_df[cleaned_df["patient_id"].isin(patient_ids)].copy()
+
+    train_raw, val_raw, test_raw = subset(train_patients), subset(val_patients), subset(test_patients)
+    print(f"Patients — train: {len(train_patients)}, validation: {len(val_patients)}, test: {len(test_patients)}")
+
+    # Causal, train-fit imputation (no future donors, no cross-split leakage).
+    if config.impute_missing_values:
+        print("\n~~~~ Imputing missing values (causal, train-fit) ~~~~")
+        train_raw, val_raw, test_raw = data_pre_processor.causal_knn_impute(train_raw, val_raw, test_raw)
+    else:
+        print("\nImputation disabled (preprocessing.impute_missing_values = false).")
+
+    # Lagged features per split (lags are within-patient, so per-split == whole-frame).
+    print("\n~~~~ Creating lagged features per split ~~~~")
+    train_data = data_pre_processor.add_lagged_features(train_raw, hours)
+    val_data = data_pre_processor.add_lagged_features(val_raw, hours)
+    test_data = data_pre_processor.add_lagged_features(test_raw, hours)
+
+    # Classification label after lagging.
+    if mode == "classification":
+        binary_processor = BinaryDataProcessor()
+        train_data = binary_processor.create_binary_data(train_data)
+        val_data = binary_processor.create_binary_data(val_data)
+        test_data = binary_processor.create_binary_data(test_data)
+
+    return train_data, val_data, test_data
+
+
+def print_dataset_statistics(train_data, val_data, test_data):
     def calculate_statistics(df):
         total_rows = len(df)
         one_null = (df.isnull().sum(axis=1) == 1).sum()
@@ -110,25 +140,23 @@ def print_dataset_statistics(train_data, test_data):
         more_than_one_null_percentage = (more_than_one_null / total_rows) * 100
         return [total_rows, one_null, one_null_percentage, more_than_one_null, more_than_one_null_percentage]
 
-    train_stats = calculate_statistics(train_data)
-    test_stats = calculate_statistics(test_data)
-
     headers = ["Dataset", "Total Rows", "Rows with 1 Null", "Percentage", "Rows with >1 Null", "Percentage"]
     table = [
-        ["Train"] + train_stats,
-        ["Test"] + test_stats
+        ["Train"] + calculate_statistics(train_data),
+        ["Validation"] + calculate_statistics(val_data),
+        ["Test"] + calculate_statistics(test_data),
     ]
 
     print("\nDataset Statistics:\n")
     print(tabulate(table, headers=headers, tablefmt="fancy_grid"))
 
 
-def run_regression_pipeline(X_train, X_test, y_train, y_test):
+def run_regression_pipeline(X_train, X_val, X_test, y_train, y_val, y_test):
     pipeline = RegressionPipeline()
-    results = pipeline.run_pipeline(X_train, X_test, y_train, y_test)
+    results = pipeline.run_pipeline(X_train, X_val, X_test, y_train, y_val, y_test)
 
-    DataFramePrinter.print_dataframe_tabulated(results["evaluation_results"], "Regression Predictions Results")
-    DataFramePrinter.print_dataframe_tabulated(results["cross_validation_results"], "Cross-Validation Results")
+    DataFramePrinter.print_dataframe_tabulated(results["evaluation_results"], "Regression Predictions Results (Test)")
+    DataFramePrinter.print_dataframe_tabulated(results["cross_validation_results"], "Cross-Validation Results (Train, grouped)")
 
 
 def print_statistics_about_the_data(raw_data_file_path):

@@ -134,6 +134,10 @@ Because the run is driven entirely by config (no typed input), every run is repr
 the full console output is also mirrored to `output/{mode}_{timestamp}.txt`, so you can diff
 outputs across changes.
 
+For an explanation of **where the dataset is split, where imputation happens, and how
+model/feature selection is kept off the test set**, see
+[`notes/pipeline_explanation.md`](notes/pipeline_explanation.md).
+
 ```toml
 [run]
 mode  = "regression"   # "regression" or "classification"

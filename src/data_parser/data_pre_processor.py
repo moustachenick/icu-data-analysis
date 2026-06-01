@@ -2,7 +2,6 @@ import os
 import re
 import numpy as np
 import pandas as pd
-from sklearn.impute import KNNImputer
 from pathlib import Path
 from tabulate import tabulate
 
@@ -27,19 +26,24 @@ class DataPreProcessor:
 
     def pre_process_dataset(self, hours, mode):
         """
-        Preprocess the dataset and create lagged features.
-        :param hours: Number of hours to use for creating lag features.
-        :return: DataFrame with lagged features.
+        Clean the dataset (STEPS 1-6 only). Imputation and lagged-feature creation are
+        deliberately NOT done here: they run AFTER the patient-level train/val/test split
+        (see main.py) so that imputation can be fit on the training split only and remain
+        causal. This eliminates cross-split and temporal leakage.
+
+        :param hours: Kept for signature compatibility; lagging now happens post-split.
+        :param mode: "regression" or "classification" (drives the cache file name).
+        :return: The cleaned (pre-imputation, pre-lag) DataFrame.
         """
 
-        lagged_file_path = os.path.abspath(
-            os.path.join(os.path.dirname(__file__), "..", "..", "data", f"cleaned_df_lagged_{mode}.csv")
+        cleaned_file_path = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "..", "..", "data", f"cleaned_df_{mode}.csv")
         )
 
         # if the file already exists, return the dataframe
-        if os.path.exists(lagged_file_path):
-            print(f"File {lagged_file_path} already exists. Loading the cleaned data from the file.")
-            return pd.read_csv(lagged_file_path)
+        if os.path.exists(cleaned_file_path):
+            print(f"File {cleaned_file_path} already exists. Loading the cleaned data from the file.")
+            return pd.read_csv(cleaned_file_path)
 
         # Construct the absolute path
         raw_data_file_path = self.raw_data_file_path
@@ -72,25 +76,15 @@ class DataPreProcessor:
         df = self.clean_icp_outliers(df)
         print(f"Number of rows in the dataset after the cleaning: {df.shape[0]}")
 
-        if self.config.impute_missing_values:
-            print("\n~~~~ STEP 7: Imputing missing values ~~~~\n")
-            df = self.known_nearest_neighbor_imputer(df)
-
-        print("\n~~~~ STEP 8: Creating lagged features ~~~~\n")
-        df = self.create_lagged_features(df, hours, mode)
-
-        print("Preprocessing complete.")
+        print("\nCleaning complete (imputation + lagging happen after the split).")
         print(f"Number of rows in the cleaned dataset: {df.shape[0]}")
-        print(f"Number of rows with NaN values: {df.isnull().sum().sum()}")
 
-        # Save also the cleaned data to a CSV file
-        # Construct the file path
+        # Save the cleaned (pre-imputation, pre-lag) data to a CSV file
         output_dir = Path(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'data')))
         output_dir.mkdir(parents=True, exist_ok=True)  # Ensure the directory exists
 
-        print(f"\nData Preprocessing completed. Saving cleaned data to {lagged_file_path}\n")
-        # Save the lagged dataset to a CSV file
-        df.to_csv(lagged_file_path, index=False)
+        print(f"\nData cleaning completed. Saving cleaned data to {cleaned_file_path}\n")
+        df.to_csv(cleaned_file_path, index=False)
 
         return df
 
@@ -260,55 +254,110 @@ class DataPreProcessor:
         self.print_missing_value_table(filtered_df, "Missing Values per Column — After Dropping")
         return filtered_df
 
-    def known_nearest_neighbor_imputer(self, filtered_df):
-        # A percentage of the rows have exactly 1 missing value.
-        # We will fill these missing values, by finding the nearest neighbor.
-        # We can find the nearest neighbor to the row with the missing value and replace it with that value.
-        # NOTE: We will use the nearest neighbor of any patient, not just the same patient.
+    # Columns that are never used as imputation features (identifiers / timestamps).
+    IGNORED_IMPUTE_COLS = ['patient_id', 'date_of_birth', 'timestamp']
 
-        self.print_missing_value_table(filtered_df, "Missing Values per Column — Before Imputation")
+    def causal_knn_impute(self, train_df, val_df, test_df):
+        """
+        Leak-free, causal 1-NN imputation for rows with exactly one missing feature.
 
-        # Separate the "date" and patient_id columns from the rest of the data
-        # (since they are not useful for the imputation, we will add them back later)
-        ignored_cols = ['patient_id', 'date_of_birth', 'timestamp']
+        The donor pool is built from the TRAINING split only (rows with no missing
+        features), so validation/test data never influences imputation (no cross-split
+        leakage). For each target row at time ``t``, only donors with ``timestamp <= t``
+        are eligible, so a future measurement can never fill a past row (no temporal
+        leakage / "cheating"). Cross-patient donors remain allowed (Missing-At-Random
+        assumption); a row's own future is excluded by the timestamp rule.
 
-        ignored_data = filtered_df[ignored_cols]
-        numeric_df = filtered_df.drop(columns=ignored_cols)
+        Rows with more than one missing feature are dropped (matching the previous
+        imputer, which only kept complete + single-missing rows).
 
-        missing_count_per_row = numeric_df.isnull().sum(axis=1)
+        Returns ``(train, val, test)`` with the same columns, imputed in place.
+        """
+        feature_cols = [c for c in train_df.columns if c not in self.IGNORED_IMPUTE_COLS]
 
-        # Split the DataFrame into 2 parts: one with no missing values and one with exactly one missing value
-        # Rows with no missing values
-        no_missing_df = numeric_df[missing_count_per_row == 0]
+        # Build the donor pool from complete TRAIN rows only.
+        donor_pool = train_df[train_df[feature_cols].notna().all(axis=1)]
+        donor_matrix = donor_pool[feature_cols].to_numpy(dtype=float)
+        donor_ts = pd.to_datetime(donor_pool['timestamp']).to_numpy()
+        donor_pids = donor_pool['patient_id'].to_numpy()
 
-        # Rows with exactly one missing value
-        one_missing_df = numeric_df[missing_count_per_row == 1]
+        print(f"\nCausal KNN imputation: donor pool = {len(donor_pool):,} complete training rows.")
 
-        # Initialize KNNImputer with a small number of neighbors (e.g., 1 or 2)
-        # This will find the nearest neighbor to the row with the missing value and replace it with that value.
-        imputer = KNNImputer(n_neighbors=1)
+        if len(donor_pool) == 0:
+            print("Warning: no complete training rows available as donors. Skipping imputation.")
+            return train_df, val_df, test_df
 
-        # Impute missing values in the DataFrame with one missing value
-        imputed_one_missing = imputer.fit_transform(one_missing_df)
+        results = {}
+        for split_name, df in (("train", train_df), ("validation", val_df), ("test", test_df)):
+            imputed, stats = self._impute_split_causally(
+                df, feature_cols, donor_matrix, donor_ts, donor_pids
+            )
+            results[split_name] = imputed
+            self._print_impute_diagnostics(split_name, stats)
 
-        # Convert the imputed array back to a DataFrame
-        imputed_one_missing_df = pd.DataFrame(imputed_one_missing, columns=numeric_df.columns,
-                                              index=one_missing_df.index)
+        return results["train"], results["validation"], results["test"]
 
-        # Combine the DataFrames back together
-        combined_df = pd.concat([no_missing_df, imputed_one_missing_df])
+    @staticmethod
+    def _impute_split_causally(df, feature_cols, donor_matrix, donor_ts, donor_pids):
+        """Impute one split against the (train-derived) donor pool. See causal_knn_impute."""
+        df = df.copy()
+        missing_counts = df[feature_cols].isna().sum(axis=1)
 
-        # Sort the combined DataFrame to maintain the original order
-        combined_df = combined_df.sort_index()
+        # Drop rows with more than one missing feature (matches the previous imputer).
+        keep_mask = missing_counts <= 1
+        stats = {"n_imputed": 0, "same_patient": 0, "future_donor": 0,
+                 "no_donor": 0, "dropped_multi": int((~keep_mask).sum())}
+        df = df[keep_mask].copy()
 
-        # Add the ignored columns back to the combined DataFrame
-        combined_df = pd.concat([ignored_data, combined_df], axis=1)
+        feat_values = df[feature_cols].to_numpy(dtype=float)
+        target_ts = pd.to_datetime(df['timestamp']).to_numpy()
+        target_pids = df['patient_id'].to_numpy()
+        missing_per_row = np.isnan(feat_values).sum(axis=1)
+        target_positions = np.where(missing_per_row == 1)[0]
 
-        print('\nDataFrame after imputing the missing values:')
-        self.print_percentages_of_rows_with_missing_values(combined_df)
-        self.print_missing_value_table(combined_df, "Missing Values per Column — After Imputation")
+        for pos in target_positions:
+            row = feat_values[pos]
+            missing_col = int(np.where(np.isnan(row))[0][0])
+            t = target_ts[pos]
 
-        return combined_df
+            # Eligible donors: timestamp <= t (strictly no future information).
+            eligible = donor_ts <= t
+            if not eligible.any():
+                stats["no_donor"] += 1
+                continue
+
+            # Partial Euclidean distance over the features present in the target row.
+            present_cols = [j for j in range(len(feature_cols)) if j != missing_col]
+            target_vec = row[present_cols]
+            donor_sub = donor_matrix[np.ix_(eligible, present_cols)]
+            diff = donor_sub - target_vec
+            sq_dist = np.einsum('ij,ij->i', diff, diff)
+
+            eligible_idx = np.where(eligible)[0]
+            donor_idx = int(eligible_idx[int(np.argmin(sq_dist))])
+
+            feat_values[pos, missing_col] = donor_matrix[donor_idx, missing_col]
+
+            stats["n_imputed"] += 1
+            if donor_pids[donor_idx] == target_pids[pos]:
+                stats["same_patient"] += 1
+            if donor_ts[donor_idx] > t:
+                stats["future_donor"] += 1  # must remain 0 by construction
+
+        df[feature_cols] = feat_values
+        return df, stats
+
+    @staticmethod
+    def _print_impute_diagnostics(split_name, stats):
+        n = stats["n_imputed"]
+        print(f"\nKNN Imputation Diagnostics — {split_name} split")
+        print(f"  Rows dropped (>1 missing feature)         : {stats['dropped_multi']:,}")
+        print(f"  Rows imputed (exactly 1 missing feature)  : {n:,}")
+        if n:
+            sp, fu = stats["same_patient"], stats["future_donor"]
+            print(f"  Same-patient donor                        : {sp:,} / {n:,} ({100 * sp / n:.1f}%)")
+            print(f"  Future-timestamp donor                    : {fu:,} / {n:,} ({100 * fu / n:.1f}%)  <- must be 0 (causal)")
+        print(f"  Rows left unimputed (no eligible past donor): {stats['no_donor']:,}")
 
     def delete_negative_icp_values(self, combined_df):
         # Ensure 'icp' is a numeric column
@@ -350,11 +399,17 @@ class DataPreProcessor:
 
         return cleaned_df
 
-    def create_lagged_features(self, data, hours, mode):
+    def add_lagged_features(self, data, hours):
         """
-        Preprocess the dataset and create lagged features.
-        :param data: DataFrame to process
-        :param hours: Number of hours to use for creating lag features
+        Create lagged time-series features for a single split.
+
+        Called once per train/validation/test split (after the patient-level split and
+        causal imputation). Lags are computed within each patient, so applying this
+        per-split is equivalent to doing it on the whole frame — patients are disjoint
+        across splits.
+
+        :param data: DataFrame (one split) to process.
+        :param hours: Number of hours to use for creating lag features.
         """
 
         # Create lagged features

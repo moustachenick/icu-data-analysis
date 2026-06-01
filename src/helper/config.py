@@ -18,6 +18,8 @@ class AppConfig:
 
     mode: str
     hours: int
+    test_size: float
+    val_size: float
     add_pathology_one_hot: bool
     drop_high_missing_columns: bool
     impute_missing_values: bool
@@ -55,6 +57,7 @@ def load_config(cli_mode=None, cli_hours=None):
         data = tomllib.load(f)
 
     run = data.get("run", {})
+    split = data.get("split", {})
     preprocessing = data.get("preprocessing", {})
     parsing = data.get("parsing", {})
     classification = data.get("classification", {})
@@ -68,9 +71,19 @@ def load_config(cli_mode=None, cli_hours=None):
 
     hours = cli_hours if cli_hours is not None else run.get("hours", 5)
 
+    test_size = split.get("test_size", 0.2)
+    val_size = split.get("val_size", 0.2)
+    if not (0 < test_size < 1 and 0 < val_size < 1 and test_size + val_size < 1):
+        raise ValueError(
+            f"Invalid split sizes (test_size={test_size}, val_size={val_size}). "
+            "Each must be in (0, 1) and test_size + val_size must be < 1."
+        )
+
     return AppConfig(
         mode=mode,
         hours=hours,
+        test_size=test_size,
+        val_size=val_size,
         add_pathology_one_hot=preprocessing.get("add_pathology_one_hot", False),
         drop_high_missing_columns=preprocessing.get("drop_high_missing_columns", True),
         impute_missing_values=preprocessing.get("impute_missing_values", True),

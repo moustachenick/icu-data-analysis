@@ -37,40 +37,49 @@ class ClassificationPipeline:
     def __init__(self, data_dir_path):
         self.data_dir_path = data_dir_path
 
-    def run_pipeline(self, X_train, X_test, y_train, y_test):
-        # Remove the prepare_classification_datasets method call since data is already prepared
-        
+    def run_pipeline(self, X_train, X_val, X_test, y_train, y_val, y_test):
+        # Compare the 6 model variants on the VALIDATION split (model/feature selection),
+        # then produce a single final report on the held-out TEST split.
+        print("\n################ VALIDATION SPLIT — model/feature selection ################")
+        self._evaluate_on_holdout(X_train, X_val, y_train, y_val, holdout_name="VALIDATION", plot=False)
+
+        print("\n################ TEST SPLIT — final held-out report ################")
+        return self._evaluate_on_holdout(X_train, X_test, y_train, y_test, holdout_name="TEST", plot=True)
+
+    def _evaluate_on_holdout(self, X_train, X_holdout, y_train, y_holdout, holdout_name="TEST", plot=True):
+        # Train each variant on X_train and evaluate it on the given holdout split.
+
         results = []
-        
+
         daily_mean_predictor = LaggedICPBaselinePredictor()
-        results.append(daily_mean_predictor.run_pipeline(X_test, y_test))
+        results.append(daily_mean_predictor.run_pipeline(X_holdout, y_holdout))
 
         baseline_predictor = LatestICPBaselinePredictor()
-        results.append(baseline_predictor.run_pipeline(X_test, y_test))
+        results.append(baseline_predictor.run_pipeline(X_holdout, y_holdout))
 
         xg_boost_predictor_no_params = XGBoostClassificationPredictor()
-        results.append(xg_boost_predictor_no_params.run_pipeline(X_train, X_test, y_train, y_test))
+        results.append(xg_boost_predictor_no_params.run_pipeline(X_train, X_holdout, y_train, y_holdout))
 
         xg_boost_predictor = XGBoostClassificationPredictor(model_params=self.xg_boost_model_params)
-        results.append(xg_boost_predictor.run_pipeline(X_train, X_test, y_train, y_test))
+        results.append(xg_boost_predictor.run_pipeline(X_train, X_holdout, y_train, y_holdout))
 
         # XGBoost with only icp_lag_* features (default params)
         xgb_lagonly = XGBoostClassificationPredictor(
             feature_selector=XGBoostClassificationPredictor.lag_only_feature_selector
         )
-        results.append(xgb_lagonly.run_pipeline(X_train, X_test, y_train, y_test))
+        results.append(xgb_lagonly.run_pipeline(X_train, X_holdout, y_train, y_holdout))
 
         # XGBoost with only icp_lag_* features (custom params)
         xgb_lagonly_params = XGBoostClassificationPredictor(
             model_params=self.xg_boost_model_params,
             feature_selector=XGBoostClassificationPredictor.lag_only_feature_selector
         )
-        results.append(xgb_lagonly_params.run_pipeline(X_train, X_test, y_train, y_test))
+        results.append(xgb_lagonly_params.run_pipeline(X_train, X_holdout, y_train, y_holdout))
 
-        print("\n=== CLASSIFICATION RESULTS ===")
-        print(f"Number of test samples: {len(X_test)}")
-        print(f"Number of positive samples (icp_binary is 1): {sum(y_test == 1)}")
-        print(f"Number of negative samples (icp_binary is 0): {sum(y_test == 0)}")
+        print(f"\n=== CLASSIFICATION RESULTS ({holdout_name}) ===")
+        print(f"Number of {holdout_name.lower()} samples: {len(X_holdout)}")
+        print(f"Number of positive samples (icp_binary is 1): {sum(y_holdout == 1)}")
+        print(f"Number of negative samples (icp_binary is 0): {sum(y_holdout == 0)}")
 
         res_lagged = results[0]
         res_latest = results[1]
@@ -154,9 +163,9 @@ class ClassificationPipeline:
             })
 
         summary_df = pd.DataFrame(summary)
-        DataFramePrinter.print_dataframe_tabulated(summary_df, "Classification Models Comparison")
+        DataFramePrinter.print_dataframe_tabulated(summary_df, f"Classification Models Comparison ({holdout_name})")
 
-        print("\n=== CASES WHERE XGBOOST IS CORRECT AND BASELINE IS WRONG (on ICP ≥ 22mmHg) ===\n")
+        print(f"\n=== CASES WHERE XGBOOST IS CORRECT AND BASELINE IS WRONG ({holdout_name}, on ICP ≥ 22mmHg) ===\n")
 
         self.count_cases_where_xgb_correct_baseline_wrong(res_xgb_no_params, res_lagged, "XGBoost vs Lagged (default)")
         self.count_cases_where_xgb_correct_baseline_wrong(res_xgb_with_params, res_lagged, "XGBoost + Params vs Lagged (params)")
@@ -168,11 +177,13 @@ class ClassificationPipeline:
         self.count_cases_where_xgb_correct_baseline_wrong(res_xgb_lagonly, res_latest, "XGBoost LagOnly vs Latest")
         self.count_cases_where_xgb_correct_baseline_wrong(res_xgb_lagonly_params, res_latest, "XGBoost LagOnly+Params vs Latest")
 
+        # Plot feature importances (only for the final test report to avoid overwriting the PNG twice).
+        if plot:
+            self.plot_xgboost_feature_importances(xg_boost_predictor.model)
+            self.plot_xgboost_feature_importances(xgb_lagonly.model, title="XGBoost Feature Importances (Lag Only)")
+            self.plot_xgboost_feature_importances(xgb_lagonly_params.model, title="XGBoost Feature Importances (Lag Only, With Params)")
 
-        # Plot feature importances
-        self.plot_xgboost_feature_importances(xg_boost_predictor.model)
-        self.plot_xgboost_feature_importances(xgb_lagonly.model, title="XGBoost Feature Importances (Lag Only)")
-        self.plot_xgboost_feature_importances(xgb_lagonly_params.model, title="XGBoost Feature Importances (Lag Only, With Params)")
+        return results
 
     def run_mcnemar_test(self, model_a_result, model_b_result, label=""):
         y_true = model_a_result['y_true']

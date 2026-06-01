@@ -3,7 +3,7 @@ import pandas as pd
 
 from sklearn.linear_model import LinearRegression, Ridge, Lasso
 from sklearn.metrics import mean_squared_error, mean_absolute_error
-from sklearn.model_selection import KFold, cross_val_score
+from sklearn.model_selection import GroupKFold, cross_val_score
 from sklearn.preprocessing import StandardScaler
 
 from helper.data_frame_printer import DataFramePrinter
@@ -17,17 +17,17 @@ class RegressionPipeline:
         self.models = {
             "Linear Regression": {
                 "model": LinearRegression(),
-                "column_selector": lambda X: X.select_dtypes(include=[np.number]),
+                "column_selector": lambda X: X.select_dtypes(include=[np.number]).drop(columns=["patient_id"], errors="ignore"),
                 "use_scaling": True
             },
             "Ridge Regression": {
                 "model": Ridge(),
-                "column_selector": lambda X: X.select_dtypes(include=[np.number]),
+                "column_selector": lambda X: X.select_dtypes(include=[np.number]).drop(columns=["patient_id"], errors="ignore"),
                 "use_scaling": True
             },
             "Lasso Regression": {
                 "model": Lasso(alpha=0.1),
-                "column_selector": lambda X: X.select_dtypes(include=[np.number]),
+                "column_selector": lambda X: X.select_dtypes(include=[np.number]).drop(columns=["patient_id"], errors="ignore"),
                 "use_scaling": True
             },
             "Baseline History Regression": {
@@ -132,18 +132,19 @@ class RegressionPipeline:
         print("\nLasso Regression Coefficients, ordered by importance:")
         print(lasso_coefficients.abs().sort_values(ascending=False))
 
-    def __evaluate_with_feature_configs(self, X_train, X_test, y_train, y_test):
+    def __evaluate_with_feature_configs(self, X_train, X_val, y_train, y_val):
         """
-        Evaluate models with different feature configurations.
+        Compare feature configurations on the VALIDATION split (model/feature selection).
+        The test split is never used here — it stays held out for the final report.
 
         Args:
             X_train: Training features.
-            X_test: Testing features.
+            X_val: Validation features.
             y_train: Training target.
-            y_test: Testing target.
+            y_val: Validation target.
 
         Returns:
-            rmse_results_df: DataFrame of RMSE values for all models and configurations.
+            rmse_results_df: DataFrame of validation RMSE values for all models and configurations.
         """
         feature_configs = {
             "Full Dataset": X_train.columns,
@@ -171,12 +172,11 @@ class RegressionPipeline:
         for config_name, columns in feature_configs.items():
             print(f"\nEvaluating for configuration: {config_name}")
 
-
             # Select the columns for the current configuration
             X_train_config = X_train[columns]
-            X_test_config = X_test[columns]
+            X_val_config = X_val[columns]
 
-            # Collect RMSE for all models
+            # Collect validation RMSE for all models
             rmse_values = []
             for name, model_info in self.models.items():
 
@@ -184,55 +184,61 @@ class RegressionPipeline:
                 if model_info.get("use_scaling", True):
                     # Ensure we only select numeric columns for scaling
                     X_train_config = X_train_config.select_dtypes(include=[np.number])
-                    X_test_config = X_test_config.select_dtypes(include=[np.number])
+                    X_val_config = X_val_config.select_dtypes(include=[np.number])
                 else:
                     X_train_config = X_train[columns]
-                    X_test_config = X_test[columns]
+                    X_val_config = X_val[columns]
 
                 X_train_selected = model_info["column_selector"](X_train_config)
-                X_test_selected = model_info["column_selector"](X_test_config)
+                X_val_selected = model_info["column_selector"](X_val_config)
                 if model_info.get("use_scaling", True):
                     self.scaler = StandardScaler()
                     X_train_scaled = self.scaler.fit_transform(X_train_selected)
-                    X_test_scaled = self.scaler.transform(X_test_selected)
+                    X_val_scaled = self.scaler.transform(X_val_selected)
                 else:
                     X_train_scaled = X_train_selected
-                    X_test_scaled = X_test_selected
+                    X_val_scaled = X_val_selected
                 model_info["model"].fit(X_train_scaled, y_train)
-                predictions = model_info["model"].predict(X_test_scaled)
-                rmse = np.sqrt(mean_squared_error(y_test, predictions))
+                predictions = model_info["model"].predict(X_val_scaled)
+                rmse = np.sqrt(mean_squared_error(y_val, predictions))
                 rmse_values.append(rmse)
 
             rmse_metrics[config_name] = rmse_values
 
         # Convert results to DataFrame
         rmse_results_df = pd.DataFrame(rmse_metrics)
-        DataFramePrinter.print_dataframe_tabulated(rmse_results_df, "Feature Configuration RMSE Results")
+        DataFramePrinter.print_dataframe_tabulated(rmse_results_df, "Feature Configuration RMSE Results (Validation)")
         return rmse_results_df
 
-    def __perform_cross_validation(self, X, y, cv_folds=10):
+    def __perform_cross_validation(self, X_train, y_train, cv_folds=10):
         """
-        Perform cross-validation for all models.
+        Patient-grouped cross-validation on the TRAINING split only (secondary robustness
+        check). Folds are grouped by ``patient_id`` so no patient spans train/test folds,
+        and ``patient_id``/``timestamp`` are excluded from the model features.
 
         Args:
-            X: Features.
-            y: Target variable.
+            X_train: Training features (must include 'patient_id' for grouping).
+            y_train: Training target.
             cv_folds (int): Number of cross-validation folds.
 
         Returns:
-            cv_results_df: DataFrame containing cross-validation RMSE for all models.
+            cv_results_df: DataFrame containing grouped CV RMSE for all models.
         """
         cv_results = {"Model": [], "Mean CV RMSE": []}
+        groups = X_train["patient_id"].to_numpy()
+        gkf = GroupKFold(n_splits=cv_folds)
 
         for name, model_info in self.models.items():
-            X_selected = model_info["column_selector"](X)
+            X_selected = model_info["column_selector"](X_train)
             if model_info.get("use_scaling", True):
                 self.scaler = StandardScaler()
                 X_scaled = self.scaler.fit_transform(X_selected)
             else:
                 X_scaled = X_selected
-            kf = KFold(n_splits=cv_folds, shuffle=True, random_state=42)
-            scores = cross_val_score(model_info["model"], X_scaled, y, cv=kf, scoring="neg_mean_squared_error")
+            scores = cross_val_score(
+                model_info["model"], X_scaled, y_train, groups=groups, cv=gkf,
+                scoring="neg_mean_squared_error",
+            )
             mean_rmse = np.sqrt(-scores.mean())  # Convert MSE to RMSE
             cv_results["Model"].append(name)
             cv_results["Mean CV RMSE"].append(mean_rmse)
@@ -241,34 +247,39 @@ class RegressionPipeline:
         print("Cross-validation completed.")
         return cv_results_df
 
-    def run_pipeline(self, X_train, X_test, y_train, y_test, cv_folds=10):
+    def run_pipeline(self, X_train, X_val, X_test, y_train, y_val, y_test, cv_folds=10):
         """
-        Run the full pipeline: train models, evaluate them, compute feature importance, and perform cross-validation.
+        Run the full pipeline with a three-way split:
+        - train models on the training split,
+        - select feature configurations on the VALIDATION split,
+        - report final metrics ONCE on the held-out TEST split,
+        - plus a patient-grouped CV robustness check on the training split.
 
         Args:
-            X_train (DataFrame): Training features.
-            X_test (DataFrame): Testing features.
-            y_train (Series): Training target.
-            y_test (Series): Testing target.
+            X_train, X_val, X_test (DataFrame): Features per split.
+            y_train, y_val, y_test (Series): Targets per split.
             cv_folds (int): Number of cross-validation folds.
 
         Returns:
-            results: Dictionary containing evaluation results, feature importance, and cross-validation results.
+            results: Dict with test evaluation, grouped-CV, and feature-config results.
         """
-        
+
         lag_cols = [c for c in X_train.columns if ('_lag_' in c) or (c in ["patient_id", "timestamp"])]
         X_train = X_train[lag_cols]
-        X_test  = X_test[lag_cols]
-        
+        X_val = X_val[lag_cols]
+        X_test = X_test[lag_cols]
+
         self.__train_models(X_train, y_train)
+
+        # Final, single-use evaluation on the held-out test split.
         evaluation_results = self.__evaluate_models(X_test, y_test)
         self.__compute_feature_importance(X_train, y_train)
 
-        print("Performing cross-validation...")
-        cross_validation_results = self.__perform_cross_validation(pd.concat([X_train, X_test]), pd.concat([y_train, y_test]), cv_folds)
-        
-        print("Evaluating with feature configurations...")
-        feature_config_results = self.__evaluate_with_feature_configs(X_train, X_test, y_train, y_test)
+        print("Performing patient-grouped cross-validation on the training split...")
+        cross_validation_results = self.__perform_cross_validation(X_train, y_train, cv_folds)
+
+        print("Selecting feature configurations on the validation split...")
+        feature_config_results = self.__evaluate_with_feature_configs(X_train, X_val, y_train, y_val)
 
         results = {
             "evaluation_results": evaluation_results,

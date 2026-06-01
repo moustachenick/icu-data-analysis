@@ -11,6 +11,13 @@
 mode  = "classification"   # "regression" or "classification"
 hours = 5              # lag lookback window; drives icp_lag_1 ... icp_lag_N
 
+[split]
+# Patient-level three-way split (patients are disjoint across train/validation/test).
+# Fractions of the whole cohort; train = 1 - test_size - val_size (default 60/20/20).
+# Validation is used for model/feature selection; test is the final held-out report.
+test_size = 0.2
+val_size  = 0.2
+
 [preprocessing]
 add_pathology_one_hot     = true  # add one-hot encoded pathology columns
 drop_high_missing_columns = true   # drop respiration_rate + rows with >1 missing value
