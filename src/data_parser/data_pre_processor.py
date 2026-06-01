@@ -19,8 +19,11 @@ class DataPreProcessor:
         "hydrocephalus",
     }
 
-    def __init__(self, raw_data_file_path):
+    def __init__(self, raw_data_file_path, config):
         self.raw_data_file_path = raw_data_file_path
+        # Run configuration (see helper.config.AppConfig) drives the preprocessing steps
+        # that used to be interactive prompts.
+        self.config = config
 
     def pre_process_dataset(self, hours, mode):
         """
@@ -60,7 +63,7 @@ class DataPreProcessor:
         print("\n~~~~ STEP 4: Standardizing missing values (converting 0 to Nan, etc) ~~~~\n")
         df = self.standardize_missing_values(df)
 
-        if mode == "regression" or input("Do you want to drop columns with more than 1 missing values? (y/n): ").lower() == 'y':
+        if self.config.drop_high_missing_columns:
             print("\n~~~~ STEP 5: Dropping columns with high missing values ~~~~\n")
             df = self.drop_columns_with_high_missing_values(df)
             print(f"Number of rows in the dataset after the dropping: {df.shape[0]}")
@@ -69,7 +72,7 @@ class DataPreProcessor:
         df = self.clean_icp_outliers(df)
         print(f"Number of rows in the dataset after the cleaning: {df.shape[0]}")
 
-        if mode == "regression" or input("Do you want to impute missing values? (y/n): ").lower() == 'y':
+        if self.config.impute_missing_values:
             print("\n~~~~ STEP 7: Imputing missing values ~~~~\n")
             df = self.known_nearest_neighbor_imputer(df)
 
@@ -96,14 +99,8 @@ class DataPreProcessor:
         Optionally enrich the dataframe with one-hot encoded pathology columns using the pathologies_filtered.csv file.
         Pathologies listed in PATHOLOGIES_GROUPED_AS_OTHER are grouped under a single "pathology_other" column.
         """
-        try:
-            user_input = input("Do you want to add one-hot encoded pathology columns? (y/n): ").strip().lower()
-        except Exception:
-            # In non-interactive contexts, default to skipping.
-            return df
-
-        if user_input not in ("y", "yes"):
-            print("Skipping pathology one-hot encoding.")
+        if not self.config.add_pathology_one_hot:
+            print("Skipping pathology one-hot encoding (preprocessing.add_pathology_one_hot = false).")
             return df
 
         pathologies_file = os.path.abspath(
@@ -367,7 +364,8 @@ class DataPreProcessor:
         ]
         time_series_processor = TimeSeriesProcessor()
         data = time_series_processor.process_data(
-            data, hours=hours, columns_to_lag=columns_to_lag, mode=mode
+            data, hours=hours, columns_to_lag=columns_to_lag,
+            drop_lagged_null_rows=self.config.drop_lagged_null_rows,
         )
 
         print(f"\nColumns after creating lagged features: {data.columns}")

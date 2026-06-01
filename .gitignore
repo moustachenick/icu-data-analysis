@@ -115,5 +115,8 @@ test*.txt
 
 data.zip
 
+# Local run configuration (created from config.example.toml on first run)
+config.toml
+
 xgboost_feature_importance.png
 CLAUDE.md

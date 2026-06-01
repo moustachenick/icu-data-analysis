@@ -122,50 +122,44 @@ venv/bin/python src/main.py
 python src/main.py
 ```
 
-## User Inputs During Execution
+## Configuration
 
-When running the main script, you will be prompted to make several decisions through user inputs that affect how the
-data is processed. Below is an explanation of each prompt:
+The pipeline is fully configuration-driven — there are **no interactive prompts**.
+All run decisions live in a `config.toml` file at the project root. This file is **not tracked by
+Git**; a tracked template, `config.example.toml`, holds the documented defaults. On the
+first run, if `config.toml` does not exist, the program creates it by copying
+`config.example.toml`. Edit `config.toml` to change behaviour, then re-run.
 
-### Data Preprocessing Decisions
+Because the run is driven entirely by config (no typed input), every run is reproducible —
+the full console output is also mirrored to `output/{mode}_{timestamp}.txt`, so you can diff
+outputs across changes.
 
-1. **Dropping columns with high missing values**:
+```toml
+[run]
+mode  = "regression"   # "regression" or "classification"
+hours = 5              # lag lookback window; drives icp_lag_1 ... icp_lag_N
 
-```text
-Do you want to drop columns with more than 1 missing values? (y/n):
+[preprocessing]
+add_pathology_one_hot     = false  # add one-hot encoded pathology columns
+drop_high_missing_columns = true   # drop respiration_rate + rows with >1 missing value
+impute_missing_values     = true   # KNN-impute (n_neighbors=1) rows with exactly 1 missing value
+drop_lagged_null_rows     = true   # drop rows with null values in lagged columns
 
-- `y`: Removes the 'respiration_rate' column and any rows that have more than 1 column with missing values
-- `n`: Keeps all columns and rows, including those with multiple missing values
+[parsing]
+filter_by_pathology      = ""      # pathology code to keep; "" = include all pathologies
+apply_instance_filtering = true    # restrict dataset to patients in pathologies_filtered.csv
+
+[classification]
+run_cross_validation = false       # run the 10-fold cross-validation after the main pipeline
 ```
 
-2. **Deleting ICP outliers**:
+The CLI flags `--mode` and `--hours` override the corresponding `[run]` values, e.g.:
 
-```text
-Do you want to delete rows that have ICP outliers? (y/n):
-
-- `y`: Removes rows where ICP values are more than 7 standard deviations from the mean
-- `n`: Keeps all ICP values, including potential outliers
+```shell
+python src/main.py --mode classification --hours 8
 ```
 
-3. **Imputing missing values**:
-
-```text
-Do you want to impute missing values? (y/n):
-
-- `y`: Uses K-Nearest Neighbors imputation (with n_neighbors=1) to fill missing values
-- `n`: Keeps missing values as they are
-```
-
-4. **Handling null values in lagged columns**:
-
-```text
-Do you want to drop the rows with null values in lagged columns? (y/n):
-
-- `y`: Removes rows that have any null values in the lagged feature columns
-- `n`: Keeps rows with null values in lagged columns
-```
-
-After these steps, the lagged datasets will be created and saved to the `data/` directory.
+After the preprocessing steps, the lagged datasets will be created and saved to the `data/` directory.
 
 For Regression, it would be:
 
@@ -185,7 +179,7 @@ data/test_data_classification.csv
 
 **Notice**: If you want the pre-precessing steps to run again, you should delete the `data/train_data.csv`,
 `data/test_data.csv`, `data/train_data_classification.csv`, `data/test_data_classification.csv`, `data/final_data.csv`,
-and `data/cleaned_df_lagged` files. The script will then prompt you again for the preprocessing steps.
+and `data/cleaned_df_lagged` files. The script will then re-run the preprocessing steps using your `config.toml`.
 
 You can also do that by running the provided `clean_generated_files.sh` script, which will delete all the aforementioned
 generated

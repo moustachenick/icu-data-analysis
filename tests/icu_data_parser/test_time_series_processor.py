@@ -1,6 +1,5 @@
 import os
 import unittest
-from unittest.mock import patch
 import pandas as pd
 from pandas.testing import assert_frame_equal, assert_series_equal
 
@@ -26,10 +25,7 @@ class TestTimeSeriesProcessor(unittest.TestCase):
         # Construct the absolute path to the datasets directory
         self.datasets_dir = os.path.join(test_dir, 'datasets')
 
-    # Add the @patch decorator to mock the input() function
-    # in order to avoid user input during testing
-    @patch('builtins.input', side_effect=['y', 'y'])
-    def test_process_data(self, mock_input):
+    def test_process_data(self):
         """
         Test the process_data method to ensure the correct output is generated.
         """

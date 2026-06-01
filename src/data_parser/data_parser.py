@@ -7,8 +7,12 @@ from datetime import datetime, timedelta
 """
 
 class DataParser:
-    def __init__(self, data_dir):
+    def __init__(self, data_dir, apply_instance_filtering=True, filter_by_pathology=""):
         self.data_dir = data_dir
+        # Whether to restrict the dataset to patients listed in pathologies_filtered.csv,
+        # and an optional single pathology code to keep ("" = keep all pathologies).
+        self.apply_instance_filtering = apply_instance_filtering
+        self.filter_by_pathology = filter_by_pathology
         # final data list to store the final dataset
         self.combined_data = []
 
@@ -246,13 +250,8 @@ class DataParser:
             if available_pathologies:
                 available_list = ", ".join(sorted(available_pathologies))
                 print(f"Available pathologies for filtering: {available_list}")
-                while True:
-                    pathology_input = input(
-                        "Enter a pathology code to filter by or press Enter to include all: "
-                    ).strip()
-                    if pathology_input == "":
-                        break
-
+                pathology_input = (self.filter_by_pathology or "").strip()
+                if pathology_input:
                     normalized_input = pathology_input.lower()
                     matching_pathology = next(
                         (p for p in available_pathologies if p.lower() == normalized_input),
@@ -268,11 +267,13 @@ class DataParser:
                         print(
                             f"Filtering dataset to patients with pathology '{selected_pathology}'"
                         )
-                        break
-
-                    print(
-                        f"Pathology '{pathology_input}' not found. Available options: {available_list}"
-                    )
+                    else:
+                        print(
+                            f"Pathology '{pathology_input}' (parsing.filter_by_pathology) not found. "
+                            f"Available options: {available_list}. Including all pathologies."
+                        )
+                else:
+                    print("No pathology filter set (parsing.filter_by_pathology is empty); including all pathologies.")
 
             if selected_pathology and not valid_patient_ids:
                 print(
@@ -291,21 +292,15 @@ class DataParser:
             
             instances_to_remove = original_count - instances_to_keep
             
-            # Ask user for confirmation
             print(f"Current dataset contains {original_count} total data instances")
             print(f"Filtering would remove {instances_to_remove} data instances")
             print(f"Filtering would keep {instances_to_keep} data instances")
-            
+
             if instances_to_remove > 0:
-                while True:
-                    user_input = input("\nDo you want to proceed with data instance filtering? (y/n): ").strip().lower()
-                    if user_input in ['y', 'yes']:
-                        break
-                    elif user_input in ['n', 'no']:
-                        print("Skipping data instance filtering")
-                        return
-                    else:
-                        print("Please enter 'y' for yes or 'n' for no")
+                if not self.apply_instance_filtering:
+                    print("\nInstance filtering disabled (parsing.apply_instance_filtering = false). "
+                          "Skipping data instance filtering")
+                    return
             else:
                 print("No data instances to remove - all instances are for patients in the filter list")
                 return

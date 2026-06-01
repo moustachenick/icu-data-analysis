@@ -8,29 +8,37 @@ from classification.classification_pipeline import ClassificationPipeline
 from data_parser.data_parser import DataParser
 from data_parser.data_pre_processor import DataPreProcessor
 from data_parser.binary_data_processor import BinaryDataProcessor
+from helper.config import load_config
 from helper.data_frame_printer import DataFramePrinter
+from helper.output_logger import build_output_path, tee_output
 from tabulate import tabulate
 from regression.regression_pipeline import RegressionPipeline
 
 
-def main(mode, hours):
+def main(config):
     """
     Main function to initialize and run the ICPPrediction pipeline.
     Args:
-        mode (str): Mode of operation, either "regression" or "classification".
-        hours (int): Number of hours to use for creating lag features.
+        config (AppConfig): Resolved run configuration (see helper.config).
     """
+    mode = config.mode
+    hours = config.hours
+
     data_dir_path = os.path.abspath(
         os.path.join(os.path.dirname(__file__), "..", "data")
     )
 
-    data_parser = DataParser(data_dir_path)
+    data_parser = DataParser(
+        data_dir_path,
+        apply_instance_filtering=config.apply_instance_filtering,
+        filter_by_pathology=config.filter_by_pathology,
+    )
     raw_data_file_path = data_parser.run()
 
     print_statistics_about_the_data(raw_data_file_path)
 
     print("Running the Data Preprocessing pipeline...\n")
-    data_pre_processor = DataPreProcessor(raw_data_file_path)
+    data_pre_processor = DataPreProcessor(raw_data_file_path, config)
     cleaned_df_lagged = data_pre_processor.pre_process_dataset(hours, mode)
 
     train_data_path = os.path.join(data_dir_path, f"train_data_{mode}.csv")
@@ -75,7 +83,7 @@ def main(mode, hours):
         
         pipeline = ClassificationPipeline(data_dir_path)
         pipeline.run_pipeline(X_train, X_test, y_train, y_test)
-        if input("Run also the 10-fold cross-validation? (y/n): ").lower() == 'y':
+        if config.run_cross_validation:
             # Reconstruct full X and y from train/test parts,
             # because the cross-validation pipeline expects the full dataset
             X = pd.concat([X_train, X_test], axis=0).reset_index(drop=True)
@@ -154,21 +162,15 @@ def print_statistics_about_the_data(raw_data_file_path):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run the ICP Prediction pipeline.")
     parser.add_argument("--mode", type=str, choices=["regression", "classification"],
-                        help="Mode of operation: 'regression' or 'classification'")
-    parser.add_argument("--hours", type=int, default=5, help="Number of hours to use for creating lag features")
+                        help="Mode of operation: 'regression' or 'classification' (overrides config.toml)")
+    parser.add_argument("--hours", type=int, default=None,
+                        help="Number of hours to use for creating lag features (overrides config.toml)")
     args = parser.parse_args()
 
-    if not args.mode:
-        print("Which mode would you like to run?")
-        print("1. Regression")
-        print("2. Classification")
-        choice = input("Enter the number of your choice: ").strip()
-        if choice == "1":
-            args.mode = "regression"
-        elif choice == "2":
-            args.mode = "classification"
-        else:
-            print("Invalid choice. Defaulting to regression.")
-            args.mode = "regression"
+    # All run decisions come from config.toml; --mode/--hours override it when provided.
+    config = load_config(cli_mode=args.mode, cli_hours=args.hours)
 
-    main(args.mode, args.hours) 
+    output_path = build_output_path(config.mode)
+    with tee_output(output_path) as log_path:
+        main(config)
+        print(f"\nFull run output saved to: {log_path}")

@@ -3,7 +3,7 @@ import pandas as pd
 
 class TimeSeriesProcessor:
 
-    def process_data(self, data, hours=5, columns_to_lag=None, mode="regression"):
+    def process_data(self, data, hours=5, columns_to_lag=None, drop_lagged_null_rows=True):
         """
         Process the full dataset by creating lag features for each row and handling missing values.
         This method creates lag features for each row based on the previous measurements within the specified number of hours.
@@ -11,6 +11,7 @@ class TimeSeriesProcessor:
         :param data: data (pd.DataFrame): The full dataset containing time series data for multiple patients.
         :param hours: hours (float): The number of hours to use for creating lag features.
         :param columns_to_lag: List of columns for which to create lag features.
+        :param drop_lagged_null_rows: If True, drop rows that have null values in lagged columns.
         :return: pd.DataFrame: A new dataframe with lagged features and missing values handled.
         """
         print("\nTime Series Processor initiated.")
@@ -40,10 +41,7 @@ class TimeSeriesProcessor:
         print(f"Number of rows with null values in lagged columns: {rows_with_nulls}")
         print(f"Percentage of the dataset with null values in lagged columns: {percentage_nulls:.2f}%")
 
-        # Ask the user if they want to drop the rows
-        user_input = input("Do you want to drop the rows with null values in lagged columns? (y/n): ").strip().lower()
-
-        if mode == "regression" or user_input == 'y':
+        if drop_lagged_null_rows:
             initial_row_count = processed_data_df.shape[0]
             processed_data_df = processed_data_df.dropna(subset=lagged_columns)
             dropped_row_count = initial_row_count - processed_data_df.shape[0]
