@@ -8,6 +8,7 @@ from sklearn.preprocessing import StandardScaler
 
 from helper.data_frame_printer import DataFramePrinter
 from regression.baseline_history_regression import BaselineHistoryRegression
+from regression.baseline_mean_regression import BaselineMeanRegression
 
 class RegressionPipeline:
     def __init__(self):
@@ -32,6 +33,11 @@ class RegressionPipeline:
             },
             "Baseline History Regression": {
                 "model": BaselineHistoryRegression(),
+                "column_selector": lambda X: X,
+                "use_scaling": False
+            },
+            "Baseline Mean Regression": {
+                "model": BaselineMeanRegression(),
                 "column_selector": lambda X: X,
                 "use_scaling": False
             }
