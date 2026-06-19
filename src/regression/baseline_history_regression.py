@@ -1,55 +1,41 @@
-from regression.regression import Regression
+import re
+
 import pandas as pd
 from sklearn.base import BaseEstimator, RegressorMixin
 
+from regression.regression import Regression
 
-# This class is a simple regressor that predicts the ICP based on the closest (timestamp) ICP value for each patient
-# in the test set. If the patient is not in the training set, then the average icp value of this patient is predicted.
+_ICP_LAG_RE = re.compile(r"^icp_lag_(\d+)$")
+
+
+# Persistence (last-value-carried-forward) baseline: predicts the patient's most recent past
+# ICP, read from the `icp_lag_1` feature already present in each row. Because the train/val/test
+# split is patient-level disjoint, a cross-patient `patient_id` lookup is always empty, so we use
+# the per-row lagged ICP (strictly past data) instead. Falls back to the training-mean ICP only
+# if no `icp_lag_*` column is available.
 class BaselineHistoryRegression(Regression, BaseEstimator, RegressorMixin):
 
     def __init__(self):
-        self.data = pd.DataFrame(columns=['patient_id', 'timestamp', 'icp'])
+        self._fallback = 0.0
 
     def fit(self, X_train, y_train):
-        # we will use all the data from X_train to make the predictions. we will filter the data to include only the
-        # columns patient_id, timestamp and icp, since this Model only uses these columns.
-
-        # drop all columns except patient_id and timestamp
-        X_train = X_train[['patient_id', 'timestamp']]
-        # concatenate X_train (columns patient_id and timestamp) and y_train (column icp)
-        X_train = pd.concat([X_train, y_train], axis=1)
-
-        self.data = X_train
+        # The prediction comes from per-row lagged ICP features; we only need a scalar fallback
+        # for the (unexpected) case where no icp_lag_* column is present at predict time.
+        self._fallback = float(pd.Series(y_train).mean())
+        return self
 
     def predict(self, X_test):
-        predictions = []
+        lag_cols = self.__icp_lag_columns(X_test)
+        if not lag_cols:
+            return [self._fallback] * len(X_test)
 
-        # for each row in X_test, we want to find the closest timestamp in the training data (for the same patient) (
-        # but not including the timestamp in the test data, we only want to use the data just before the timestamp in
-        # the test data)
-        for index, row in X_test.iterrows():
-            patient_id = row['patient_id']
-            timestamp = row['timestamp']
+        # Most recent past ICP = lowest-numbered available lag (normally icp_lag_1).
+        most_recent_col = min(lag_cols, key=lambda c: int(_ICP_LAG_RE.match(c).group(1)))
+        return X_test[most_recent_col].to_numpy()
 
-            # filter the training data to include only the rows of the same patient
-            patient_data = self.data[self.data['patient_id'] == patient_id]
-
-            # filter the training data to include only the rows before the timestamp in the test data
-            patient_data = patient_data[patient_data['timestamp'] < timestamp]
-
-            # if there are no rows before the timestamp, the prediction is the average icp value
-            # of all patients
-            if patient_data.empty:
-                prediction = self.data['icp'].mean()
-                predictions.append(prediction)
-            else:
-                # get the most recent icp value for the patient
-                # order the data for this patient by timestamp
-                patient_data = patient_data.sort_values(by='timestamp')
-                prediction = patient_data['icp'].iloc[-1]
-                predictions.append(prediction)
-
-        return predictions
+    @staticmethod
+    def __icp_lag_columns(X):
+        return [c for c in X.columns if _ICP_LAG_RE.match(c)]
 
     def get_params(self, deep=True):
         return {}

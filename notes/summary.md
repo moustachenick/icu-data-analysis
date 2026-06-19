@@ -324,12 +324,6 @@ For each test row, computes the mean of all ICP readings for that patient **befo
 
 ---
 
-### `regression/baseline_time_window_mean_regression.py` — `BaselineTimeWindowMeanICPRegression`
-
-Same as `BaselineMeanRegression` but restricts history to a rolling window of `days_window=1` day before the test timestamp.
-
----
-
 ### `generate_descriptive_stats.py`
 
 Standalone script (not part of the main pipeline). Reads `cleaned_df_classification.csv` and prints:

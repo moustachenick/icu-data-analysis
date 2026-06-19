@@ -182,9 +182,7 @@ excluded from the predictor set; the lagged features serve as the predictors. Th
 history-based baseline (`BaselineHistoryRegression`) predicts, for each observation, the most
 recent earlier ICP value recorded for the same patient, falling back to the overall mean ICP
 when no earlier value exists. Two further baselines are implemented in the codebase — a
-per-patient historical mean (`BaselineMeanRegression`) and a time-windowed historical mean
-(`BaselineTimeWindowMeanICPRegression`) — but these are not part of the default evaluation
-set.
+per-patient historical mean (`BaselineMeanRegression`).
 
 ### 7.2 Classification (`ClassificationPipeline`)
 
