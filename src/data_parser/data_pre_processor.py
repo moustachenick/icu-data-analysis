@@ -18,6 +18,19 @@ class DataPreProcessor:
         "hydrocephalus",
     }
 
+    # This mapping defines physiologic ranges for various clinical measurements. 
+    # Values outside these ranges are considered physiologically impossible and will be set to NaN during preprocessing.
+    PHYSIOLOGIC_RANGES = {
+        'ph': (6.5, 8.0),
+        'temperature': (17.0, 45.0),
+        'pao2': (0.0, 1200.0),
+        'paco2': (0.0, 200.0),
+        'mean_blood_pressure': (0.0,300.0),
+        'heart_rate': (0.0, 280.0),
+        'cpp': (-70.0, 250.0),
+        'peep': (0.0, 30.0),
+    }
+
     def __init__(self, raw_data_file_path, config):
         self.raw_data_file_path = raw_data_file_path
         # Run configuration (see helper.config.AppConfig) drives the preprocessing steps
@@ -26,7 +39,7 @@ class DataPreProcessor:
 
     def pre_process_dataset(self, hours, mode):
         """
-        Clean the dataset (STEPS 1-6 only). Imputation and lagged-feature creation are
+        Clean the dataset (STEPS 1-7 only). Imputation and lagged-feature creation are
         deliberately NOT done here: they run AFTER the patient-level train/val/test split
         (see main.py) so that imputation can be fit on the training split only and remain
         causal. This eliminates cross-split and temporal leakage.
@@ -67,12 +80,17 @@ class DataPreProcessor:
         print("\n~~~~ STEP 4: Standardizing missing values (converting 0 to Nan, etc) ~~~~\n")
         df = self.standardize_missing_values(df)
 
+        # Runs before STEP 6 so the values it blanks out are seen by the >1-missing row drop
+        # and by the downstream causal KNN imputation.
+        print("\n~~~~ STEP 5: Blanking physiologically impossible values ~~~~\n")
+        df = self.clean_physiologic_outliers(df)
+
         if self.config.drop_high_missing_columns:
-            print("\n~~~~ STEP 5: Dropping columns with high missing values ~~~~\n")
+            print("\n~~~~ STEP 6: Dropping columns with high missing values ~~~~\n")
             df = self.drop_columns_with_high_missing_values(df)
             print(f"Number of rows in the dataset after the dropping: {df.shape[0]}")
 
-        print("\n~~~~ STEP 6: Cleaning ICP outliers ~~~~\n")
+        print("\n~~~~ STEP 7: Cleaning ICP outliers ~~~~\n")
         df = self.clean_icp_outliers(df)
         print(f"Number of rows in the dataset after the cleaning: {df.shape[0]}")
 
@@ -375,6 +393,56 @@ class DataPreProcessor:
         print("Total Rows after deleting negative ICP values =", len(cleaned_df))
 
         return cleaned_df
+
+    def clean_physiologic_outliers(self, df):
+        """
+        Blank out physiologically impossible measurements (see PHYSIOLOGIC_RANGES map).
+
+        Out-of-range values are set to NaN rather than having their rows dropped, so they are
+        handled by the machinery that already exists for missing data: STEP 5 drops rows with
+        more than one missing value, and `causal_knn_impute()` fills rows with exactly one.
+
+        Must run AFTER `standardize_missing_values()` so the -1 sentinels are already NaN and
+        are not counted twice. Operates on the base columns only — lagging happens post-split
+        in `add_lagged_features()`, so every `*_lag_*` column inherits the cleaned values.
+
+        :param df: The cleaned DataFrame, post missing-value standardization.
+        :return: The DataFrame with out-of-range values replaced by NaN.
+        """
+        flagged_rows = []
+        total_flagged = 0
+
+        for column, (low, high) in self.PHYSIOLOGIC_RANGES.items():
+            if column not in df.columns:
+                continue
+
+            values = pd.to_numeric(df[column], errors='coerce')
+            # NaN comparisons are False, so already-missing values are never flagged.
+            out_of_range = (values < low) | (values > high)
+            count = int(out_of_range.sum())
+            if count == 0:
+                continue
+
+            total_flagged += count
+            for _, row in df.loc[out_of_range].iterrows():
+                flagged_rows.append({
+                    'patient_id': row.get('patient_id'),
+                    'timestamp': row.get('timestamp'),
+                    'column': column,
+                    'value': row[column],
+                    'allowed_range': f"[{low}, {high}]",
+                })
+
+            df.loc[out_of_range, column] = np.nan
+            print(f"  {column}: {count} value(s) outside [{low}, {high}] set to NaN")
+
+        print(f"\nNumber of physiologically impossible values detected: {total_flagged}")
+        if flagged_rows:
+            print("Flagged measurements:")
+            print(tabulate(pd.DataFrame(flagged_rows), headers='keys',
+                           tablefmt='fancy_grid', showindex=False))
+
+        return df
 
     def clean_icp_outliers(self, cleaned_df):
         # Detect and remove outliers in the 'icp' column using the Z-score method

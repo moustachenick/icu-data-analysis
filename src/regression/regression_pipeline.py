@@ -228,9 +228,9 @@ class RegressionPipeline:
             cv_folds (int): Number of cross-validation folds.
 
         Returns:
-            cv_results_df: DataFrame containing grouped CV RMSE for all models.
+            cv_results_df: DataFrame with mean, SD and worst-fold RMSE across folds.
         """
-        cv_results = {"Model": [], "Mean CV RMSE": []}
+        cv_results = {"Model": [], "Mean CV RMSE": [], "SD CV RMSE": [], "Worst Fold RMSE": []}
         groups = X_train["patient_id"].to_numpy()
         gkf = GroupKFold(n_splits=cv_folds)
 
@@ -245,9 +245,16 @@ class RegressionPipeline:
                 model_info["model"], X_scaled, y_train, groups=groups, cv=gkf,
                 scoring="neg_mean_squared_error",
             )
-            mean_rmse = np.sqrt(-scores.mean())  # Convert MSE to RMSE
+            # Per-fold RMSE, then mean +/- SD across folds. Reporting the spread (rather than
+            # the single sqrt(mean fold MSE) figure used previously) is standard practice and
+            # keeps one pathological fold from silently dominating the headline number — the
+            # failure mode that hid the pH contamination bug. See
+            # notes/linear_regression_cv_anomaly.md.
+            fold_rmses = np.sqrt(-scores)
             cv_results["Model"].append(name)
-            cv_results["Mean CV RMSE"].append(mean_rmse)
+            cv_results["Mean CV RMSE"].append(fold_rmses.mean())
+            cv_results["SD CV RMSE"].append(fold_rmses.std())
+            cv_results["Worst Fold RMSE"].append(fold_rmses.max())
 
         cv_results_df = pd.DataFrame(cv_results)
         print("Cross-validation completed.")
