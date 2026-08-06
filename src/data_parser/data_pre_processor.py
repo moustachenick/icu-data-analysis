@@ -23,11 +23,11 @@ class DataPreProcessor:
     PHYSIOLOGIC_RANGES = {
         'ph': (6.5, 8.0),
         'temperature': (17.0, 45.0),
-        'pao2': (0.0, 1200.0),
-        'paco2': (0.0, 200.0),
-        'mean_blood_pressure': (0.0,300.0),
-        'heart_rate': (0.0, 280.0),
-        'cpp': (-70.0, 250.0),
+        'pao2': (0.0, 700.0),
+        'paco2': (0.0, 150.0),
+        'mean_blood_pressure': (20.0,200.0),
+        'heart_rate': (15.0, 280.0),
+        'cpp': (-20.0, 200.0),
         'peep': (0.0, 30.0),
     }
 
