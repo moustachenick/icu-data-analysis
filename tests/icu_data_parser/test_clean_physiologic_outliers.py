@@ -48,7 +48,7 @@ class TestCleanPhysiologicOutliers(unittest.TestCase):
         df = pd.DataFrame([
             self._row(1, "2020-01-01 10:00:00",
                       ph=6.9, temperature=34.5, pao2=520.0, paco2=144.0,
-                      mean_blood_pressure=45.0, heart_rate=180.0, cpp=-40.0),
+                      mean_blood_pressure=45.0, heart_rate=180.0, cpp=-15.0),
         ])
         original = df.copy()
 
