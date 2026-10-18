@@ -45,6 +45,10 @@ class TestBuildFeatureConfigs(unittest.TestCase):
         self.assertIn("icp_lag_1", config)
         self.assertNotEqual(set(config), set(self.configs["Full Dataset"]))
 
+    def test_icp_lags_only_keeps_all_icp_lags_and_nothing_else(self):
+        lags = [c for c in self.configs["ICP Lags Only"] if "_lag_" in c]
+        self.assertEqual(lags, [f"icp_lag_{i}" for i in range(1, HOURS + 1)])
+
     def test_lags_1_3_5_keeps_only_those_lags(self):
         lags = {c.rsplit("_lag_", 1)[1] for c in self.configs["Lags 1-3-5"] if "_lag_" in c}
         self.assertEqual(lags, {"1", "3", "5"})

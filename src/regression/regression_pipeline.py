@@ -300,29 +300,14 @@ class RegressionPipeline:
         lags = [c for c in columns if "_lag_" in c]
         pathology = [c for c in columns if c.startswith("pathology_")]
 
-        extensive_drop = [
-            "spo2", "spo2_lag_1", "spo2_lag_2", "spo2_lag_3", "spo2_lag_4", "spo2_lag_5",
-            "heart_rate", "heart_rate_lag_1", "heart_rate_lag_2", "heart_rate_lag_3", "heart_rate_lag_4",
-            "heart_rate_lag_5",
-            "paco2", "paco2_lag_1", "paco2_lag_2", "paco2_lag_3", "paco2_lag_4", "paco2_lag_5",
-            "pao2", "pao2_lag_1", "pao2_lag_2", "pao2_lag_3", "pao2_lag_4", "pao2_lag_5",
-            "temperature", "temperature_lag_1", "temperature_lag_4", "temperature_lag_5",
-            "ph", "ph_lag_1", "ph_lag_2", "ph_lag_3", "ph_lag_4", "ph_lag_5",
-            "peep", "peep_lag_1", "peep_lag_2", "peep_lag_3", "peep_lag_4", "peep_lag_5",
-            "glucose", "glucose_lag_1", "glucose_lag_2", "glucose_lag_3", "glucose_lag_4", "glucose_lag_5",
-            "haemoglobin", "haemoglobin_lag_1", "haemoglobin_lag_2", "haemoglobin_lag_3", "haemoglobin_lag_4",
-            "haemoglobin_lag_5",
-            "cpp", "cpp_lag_1", "cpp_lag_2", "cpp_lag_3", "cpp_lag_4", "cpp_lag_5",
-            "mean_blood_pressure", "mean_blood_pressure_lag_1", "mean_blood_pressure_lag_2",
-            "mean_blood_pressure_lag_3", "mean_blood_pressure_lag_5"]
-
         return {
             "Full Dataset": ids + lags,
             "Lags 1-3-5": ids + [c for c in lags if c.rsplit("_lag_", 1)[1] in ["1", "3", "5"]],
             # Drop every lag of these variables (the bare columns are never model inputs).
             # PEEP is excluded from the whole analysis in preprocessing.
             "Drop PH, SPO2": ids + [c for c in lags if base_variable(c) not in ["ph", "spo2"]],
-            "Extensive Drop": ids + [c for c in lags if c not in extensive_drop],
+            # Tests whether prior ICP values alone capture short-term ICP evolution.
+            "ICP Lags Only": ids + [c for c in lags if base_variable(c) == "icp"],
             "Lags + Pathology": ids + lags + pathology,
         }
 
