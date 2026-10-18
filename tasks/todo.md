@@ -19,23 +19,28 @@ with the previous run, so that every change in the numbers has one known cause.
 
 ## Phase 1 — Fixes (no new models yet)
 
-- [ ] 1.1 Wrap each model in a `sklearn.pipeline.Pipeline` (`StandardScaler` → model for the
+Done. Run: `output/regression_20261018-173541.txt`. Test metrics unchanged; R² = old
+"Accuracy" / 100; Lasso CV mean 3.49271 → 3.49256 (per-fold scaling); "Drop PEEP, PH, SPO2"
+now differs from "Full Dataset" (LR 3.43971 → 3.43941); "Lags + Pathology" LR 3.43983.
+Open question for 1.3: "Extensive Drop" kept unchanged until the authors confirm it.
+
+- [x] 1.1 Wrap each model in a `sklearn.pipeline.Pipeline` (`StandardScaler` → model for the
       linear models, model only for the baselines). Remove the shared `self.scaler`.
       This fixes problem 1 (shared scaler) and problem 2 (CV scaler fitted outside the folds).
       → verify: test metrics are unchanged; CV numbers change only slightly.
       → test: a unit test that checks that `cross_val_score` gets a `Pipeline` and that the
         scaler is fitted per fold.
-- [ ] 1.2 Rename "Accuracy (%)" to "R²" and report it as a value in [−∞, 1], not as a percentage.
+- [x] 1.2 Rename "Accuracy (%)" to "R²" and report it as a value in [−∞, 1], not as a percentage.
       → verify: same values / 100.
-- [ ] 1.3 Fix the feature configurations. "Drop PEEP, PH, SPO2" must drop the `peep_lag_*`,
+- [x] 1.3 Fix the feature configurations. "Drop PEEP, PH, SPO2" must drop the `peep_lag_*`,
       `ph_lag_*` and `spo2_lag_*` columns. Check "Extensive Drop" for the same defect
       (it keeps `temperature_lag_2/3` and `mean_blood_pressure_lag_4`; confirm with the
       authors if this is intended).
       → verify: the "Drop PEEP, PH, SPO2" column differs from "Full Dataset".
       → test: a unit test that checks that each configuration removes the expected columns.
-- [ ] 1.4 Add a fifth feature configuration "Lags + Pathology" (lag features + pathology
+- [x] 1.4 Add a fifth feature configuration "Lags + Pathology" (lag features + pathology
       one-hot columns). It is an extra experiment, not the default.
-- [ ] 1.5 Feature importance: stop refitting the models in `__compute_feature_importance`;
+- [x] 1.5 Feature importance: stop refitting the models in `__compute_feature_importance`;
       reuse the fitted pipelines. Print signed coefficients next to the absolute ranking.
 
 ## Phase 2 — Investigate the Linear Regression CV anomaly (problem 5)
