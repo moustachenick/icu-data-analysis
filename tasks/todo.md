@@ -22,7 +22,7 @@ with the previous run, so that every change in the numbers has one known cause.
 Done. Run: `output/regression_20261018-173541.txt`. Test metrics unchanged; R² = old
 "Accuracy" / 100; Lasso CV mean 3.49271 → 3.49256 (per-fold scaling); "Drop PEEP, PH, SPO2"
 now differs from "Full Dataset" (LR 3.43971 → 3.43941); "Lags + Pathology" LR 3.43983.
-Open question for 1.3: "Extensive Drop" kept unchanged until the authors confirm it.
+Resolved 1.3 follow-up: "Extensive Drop" replaced by "ICP Lags Only" (commit d946a61).
 
 - [x] 1.1 Wrap each model in a `sklearn.pipeline.Pipeline` (`StandardScaler` → model for the
       linear models, model only for the baselines). Remove the shared `self.scaler`.

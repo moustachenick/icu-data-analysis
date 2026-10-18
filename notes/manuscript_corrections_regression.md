@@ -15,11 +15,11 @@ the supplementary hyperparameter table (section 1.5):
 
 | Table | Source file | Source table in the output |
 |---|---|---|
-| 3 (full, test) | `output/regression_20261018-190934.txt` | "Regression Predictions Results (Test)" |
+| 3 (full, test) | `output/regression_20261018-203212.txt` | "Regression Predictions Results (Test)" |
 | 4 (full, CV) | same | "Cross-Validation Results (Train, grouped)" |
 | 5 (full, configurations) | same | "Feature Configuration RMSE Results (Validation)" |
 | new (full, by ICP range) | same | "Regression Results by True ICP Range (Test)" |
-| 6 (TBI, test) | `output/regression_20261018-195204.txt` | "Regression Predictions Results (Test)" |
+| 6 (TBI, test) | `output/regression_20261018-205226.txt` | "Regression Predictions Results (Test)" |
 | 7 (TBI, CV) | same | "Cross-Validation Results (Train, grouped)" |
 | 8 (TBI, configurations) | same | "Feature Configuration RMSE Results (Validation)" |
 | Suppl. (hyperparameters) | both files | "Hyperparameter Tuning Results (Validation)" |
@@ -135,7 +135,7 @@ Grids: Ridge α ∈ {0.01, 0.1, 1, 10, 100}; Lasso α ∈ {0.001, 0.01, 0.1, 1};
 
 ## 2. Results — §2 Full Cohort Regression
 
-Source: `output/regression_20261018-190934.txt` (same data and numbers as `output/regression_20261018-181758.txt`, which also shows the cleaning counts).
+Source: `output/regression_20261018-203212.txt` (same data and numbers as `output/regression_20261018-181758.txt`, which also shows the cleaning counts, except the feature-configuration table, which now has "ICP Lags Only" instead of "Extensive Drop").
 
 ### 2.1 Line 169
 
@@ -168,13 +168,13 @@ Append:
 ### 2.5 Line 177 — feature configurations
 
 Replace with:
-> Feature configuration experiments on the validation set showed that restricting the models to selected lagged features (lags 1, 3, and 5), excluding selected physiological variables, or adding the admission diagnosis changed the RMSE by less than 0.05 mmHg, indicating stability of the regression models across different feature configurations.
+> Feature configuration experiments on the validation set showed that restricting the models to selected lagged features (lags 1, 3, and 5), excluding selected physiological variables, or adding the admission diagnosis changed the RMSE by less than 0.05 mmHg, indicating stability of the regression models across different feature configurations. Models restricted to the lagged ICP values alone performed within 0.01 mmHg of the models using all lagged features (validation RMSE 2.976 vs. 2.969 for Linear Regression and 2.898 vs. 2.905 for Random Forest).
 
 ### 2.6 Tables 3, 4, 5 (images `image5`, `image6`, `image7`) and new table
 
 - Regenerate Tables 3–5 from the run output. Add rows: Random Forest, XGBoost, Baseline Mean.
 - Table 4: mean ± SD.
-- Table 5: rename "Non-Significant Feature Drop" to "Drop pH, SpO₂"; add "Lags + Pathology".
+- Table 5: rename "Non-Significant Feature Drop" to "Drop pH, SpO₂"; replace "Extensive Drop" with "ICP Lags Only" (lags of ICP only; the old configuration kept three unexplained non-ICP columns); add "Lags + Pathology".
 - New Table (stratified, test set):
 
 | Model | RMSE ≤ 20 (n = 22,940) | RMSE 20–30 (n = 618) | RMSE > 30 (n = 477) |
@@ -196,7 +196,7 @@ Replace with:
 
 ## 3. Results — §3 TBI Subgroup Regression (lines 190–207)
 
-Source: `output/regression_20261018-195204.txt`. No TBI observation had ICP > 100 mmHg.
+Source: `output/regression_20261018-205226.txt`. No TBI observation had ICP > 100 mmHg.
 
 ### 3.1 Line 190
 
@@ -217,7 +217,12 @@ Replace with:
 
 ### 3.4 Lines 196–198
 
-Line 196: append "Permutation importance of the tree-based models showed the same dominance of recent ICP history." Line 198: keep.
+Line 196: append "Permutation importance of the tree-based models showed the same dominance of recent ICP history."
+
+Line 198: current "Feature configuration experiments showed only small variations in RMSE across alternative feature subsets." Replace with:
+> Feature configuration experiments showed only small variations in RMSE across alternative feature subsets (at most 0.06 mmHg), and models restricted to the lagged ICP values performed within 0.01 mmHg of the models using all lagged features (validation RMSE 3.573 vs. 3.574 for Linear Regression and 3.492 vs. 3.501 for Random Forest).
+
+Table 8: same column changes as Table 5.
 
 ### 3.5 Tables 6, 7, 8
 
@@ -244,6 +249,8 @@ Replace with:
 ### 4.3 Line 255 — add after the first sentence
 
 > The tree-based models, which can capture non-linear relationships and interactions between variables, improved only marginally on the linear models (median per-patient MAE difference below 0.1 mmHg), which further supports this observation.
+
+Keep the rest of line 255 ("…restricting models to ICP-derived features resulted in only marginal changes in accuracy") and line 257 unchanged. The new "ICP Lags Only" configuration now supports them directly (sections 2.5 and 3.4).
 
 ### 4.4 Line 259
 
