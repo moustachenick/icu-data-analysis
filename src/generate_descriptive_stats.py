@@ -38,7 +38,7 @@ DISPLAY_NAMES = {
     "mean_blood_pressure":  "Mean Blood Pressure (MAP)",
     "paco2":                "PaCO₂",
     "pao2":                 "PaO₂",
-    "peep":                 "PEEP",
+    "peep":                 "PEEP (dropped)",
     "ph":                   "pH",
     "spo2":                 "SpO₂",
     "temperature":          "Temperature",

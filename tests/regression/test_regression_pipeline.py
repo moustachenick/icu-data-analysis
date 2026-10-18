@@ -38,9 +38,9 @@ class TestBuildFeatureConfigs(unittest.TestCase):
         self.columns = list(X.columns)
         self.configs = RegressionPipeline.build_feature_configs(self.columns)
 
-    def test_drop_peep_ph_spo2_removes_all_their_lags(self):
-        config = self.configs["Drop PEEP, PH, SPO2"]
-        for var in ["peep", "ph", "spo2"]:
+    def test_drop_ph_spo2_removes_all_their_lags(self):
+        config = self.configs["Drop PH, SPO2"]
+        for var in ["ph", "spo2"]:
             self.assertFalse([c for c in config if c.startswith(f"{var}_lag_")], var)
         self.assertIn("icp_lag_1", config)
         self.assertNotEqual(set(config), set(self.configs["Full Dataset"]))
@@ -89,6 +89,9 @@ class TestRegressionPipeline(unittest.TestCase):
         self.assertNotIn("Accuracy (%)", evaluation.columns)
         self.assertTrue((evaluation["R²"] <= 1).all())
         self.assertIn("Lags + Pathology", results["feature_config_results"].columns)
+        icp_ranges = results["icp_range_results"]
+        self.assertEqual(len(icp_ranges), len(pipeline.models))
+        self.assertTrue(any(c.startswith("RMSE ≤20") for c in icp_ranges.columns))
         self.assertEqual(len(results["cross_validation_results"]), len(pipeline.models))
         self.assertIn("Random Forest", list(evaluation["Model"]))
         self.assertIn("XGBoost", list(evaluation["Model"]))

@@ -1,7 +1,9 @@
 # Manuscript corrections — regression section
 
 Target file: `ICP_manuscript .md` (line numbers refer to that file).
-Scope: regression only (reviewer comment "Να τρέξουμε κι άλλα μοντέλα regression (e.g. random forest)").
+Scope: regression (reviewer comment "Να τρέξουμε κι άλλα μοντέλα regression (e.g. random forest)"),
+the PEEP removal (reviewer request), and the ICP > 100 mmHg removal. The last two change the
+shared preprocessing, so they also affect the classification results.
 Approach: minimal changes. Each item quotes the current text and gives the replacement.
 `[TBD]` marks a value that comes from the final runs (see `tasks/todo.md`, Phase 4).
 
@@ -19,9 +21,12 @@ groups of changes affect them:
 | Code before today | New Baseline Mean model (mean of `icp_lag_1..5`) | New row in all tables |
 | Code before today | Feature configurations are evaluated on the validation split, not on the test split | Table 5 / 8 captions |
 | Today | Scaling fitted inside each CV fold | CV numbers (small change) |
-| Today | "Drop PEEP, PH, SPO2" configuration fixed. It was identical to "Full Dataset" | Table 5 / 8 column |
+| Today | "Drop PEEP, PH, SPO2" configuration fixed (it was identical to "Full Dataset") and renamed "Drop PH, SPO2" after the PEEP removal | Table 5 / 8 column |
 | Today | Random Forest and XGBoost added; all models tuned on the validation split | New rows, Methods §5 |
 | Today | CV reported as mean ± SD | Tables 4 / 7 |
+| Today | PEEP excluded from the analysis (reviewer request) | Methods §2, §3; all metrics; classification too |
+| Today | Rows with ICP > 100 mmHg removed (device range) | Methods §3; all metrics; classification too |
+| Today | Test metrics stratified by true ICP (≤ 20, 20–30, > 30 mmHg) | New table / sentence in Results |
 
 The "Accuracy (%)" label (R² × 100) does not appear in the manuscript tables. No correction is needed for it.
 
@@ -32,30 +37,47 @@ implementation, and that the old Table 5 used the test split for feature selecti
 
 ## 1. Methods
 
+### 1.0 §2 Data Acquisition and Parsing (after line 47) — PEEP removal
+
+Keep the list of recorded variables in line 47 (PEEP was recorded). Add one sentence at the
+end of that paragraph:
+
+> Positive end-expiratory pressure was recorded but was not used as a model input, because of its limited relevance to the prediction of ICP.
+
+Table 2 (descriptive statistics) can keep PEEP; mark it with a footnote: "Not used as a model input."
+
 ### 1.1 §3 Preprocessing Pipeline — add the physiologic-range step (after line 69)
 
 Add a new item 7 after "6. **Outlier Removal**":
 
 > 7. **Physiologic Range Filtering**: Measurements outside physiologically plausible ranges
 > (pH 6.5–8.0, temperature 17–45 °C, PaO₂ 0–700 mmHg, PaCO₂ 0–150 mmHg, MAP 20–200 mmHg,
-> heart rate 15–280 bpm, CPP −20–200 mmHg, PEEP 0–30 cmH₂O) were set to missing and then
+> heart rate 15–280 bpm, CPP −20–200 mmHg) were set to missing and then
 > handled by the missing-value steps above.
 
 Note: the code runs this step before imputation. If the order of the list matters to the
 authors, insert it between items 4 and 5 instead.
 
-### 1.1b §3 item 6 Outlier Removal (line 69) — factual error
+### 1.1b §3 item 6 Outlier Removal (line 69) — factual error, ICP > 100 mmHg removed
 
-The text says that the Z-score threshold of 7 "corresponds well to the clinically accepted
-physiological range of intracranial pressure (0–100 mmHg)". The data after this filter still
-contains ICP values up to 160 mmHg (train 50 rows / 8 patients > 100 mmHg; validation
-84 rows / 6 patients; test 2 rows / 1 patient). Correction depends on the authors' decision
-(see `tasks/todo.md`, Phase 3 status):
+The current text says that the Z-score threshold of 7 "corresponds well to the clinically
+accepted physiological range of intracranial pressure (0–100 mmHg)". This was not true: values
+up to 160 mmHg remained after the Z-score filter. The code now removes rows with ICP > 100 mmHg
+after the Z-score step.
 
-- Option A — enforce 0–100 mmHg in the code: keep the sentence; add "and values above
-  100 mmHg were removed".
-- Option B — keep the data: delete "which corresponds well to … (0–100 mmHg)" and the
-  following sentence, and report the maximum retained ICP value.
+Evidence for the justification (analysis of the retained rows with ICP > 100 mmHg, before the
+change): the episodes were mostly sustained (only 5 of 136 rows were isolated spikes), CPP was
+near or below 0 mmHg (median per patient −19 to +47 mmHg), and 6 of the 15 patients reached these
+values within 18 h of the end of their record. So these values are mostly real terminal
+intracranial hypertension, not artifacts. Do not describe them as artifacts.
+
+Current:
+> 6. **Outlier Removal**: Z-score filtering with a threshold of 7 (defines how many standard deviations away from the mean) was applied to remove extreme ICP values which corresponds well to the clinically accepted physiological range of intracranial pressure (0–100 mmHg), as recommended by the Association for the Advancement of Medical Instrumentation (AAMI) [(23)](https://www.zotero.org/google-docs/?1cndLj). Values beyond this range were considered highly unlikely and likely reflected technical artifacts.
+
+Replace with:
+> 6. **Outlier Removal**: Z-score filtering with a threshold of 7 (defines how many standard deviations away from the mean) was applied to remove extreme ICP values, which likely reflected technical artifacts. In addition, observations with ICP above 100 mmHg, the upper limit of the measurement range recommended by the Association for the Advancement of Medical Instrumentation (AAMI) [(23)](https://www.zotero.org/google-docs/?1cndLj), were excluded (163 observations from 17 patients). These values mostly occurred during sustained terminal episodes with cerebral perfusion pressure close to or below 0 mmHg, in which ICP prediction has no clinical utility.
+
+Note: keep the Zotero link exactly as it is in the manuscript.
 
 ### 1.2 §3 item 5 Imputation (line 67) — resolves the Greek note on that line
 
@@ -71,7 +93,7 @@ Current:
 > Three linear regression models were implemented: ordinary least squares linear regression, Ridge regression, and Lasso regression. In addition, a baseline history regression model was used, which predicts the current ICP as the mean of recent historical ICP values. All regression models were trained on lagged physiological features generated as described above. Model performance was evaluated using mean squared error (MSE), mean absolute error (MAE) and root mean squared error (RMSE).
 
 Replace with:
-> Three linear regression models were implemented: ordinary least squares linear regression, Ridge regression, and Lasso regression. To capture non-linear relationships and interactions between variables, two tree-based ensemble models were also implemented: Random Forest and XGBoost. Two rule-based baselines were used for comparison: a baseline history model, which predicts the most recent ICP value (persistence), and a baseline mean model, which predicts the mean of the ICP values over the previous 5 hours. All regression models were trained on lagged physiological features generated as described above. Features were standardized for the linear models only; the scaler was fitted on the training data (within each training fold during cross-validation). Hyperparameters of all machine learning models were selected on the validation set by minimizing RMSE (Supplementary Table [TBD]). Model performance was evaluated on the independent test set using mean squared error (MSE), mean absolute error (MAE) and root mean squared error (RMSE). In addition, 10-fold patient-grouped cross-validation was performed on the training set, and RMSE was reported as mean ± standard deviation across folds.
+> Three linear regression models were implemented: ordinary least squares linear regression, Ridge regression, and Lasso regression. To capture non-linear relationships and interactions between variables, two tree-based ensemble models were also implemented: Random Forest and XGBoost. Two rule-based baselines were used for comparison: a baseline history model, which predicts the most recent ICP value (persistence), and a baseline mean model, which predicts the mean of the ICP values over the previous 5 hours. All regression models were trained on lagged physiological features generated as described above. Features were standardized for the linear models only; the scaler was fitted on the training data (within each training fold during cross-validation). Hyperparameters of all machine learning models were selected on the validation set by minimizing RMSE (Supplementary Table [TBD]). Model performance was evaluated on the independent test set using mean squared error (MSE), mean absolute error (MAE) and root mean squared error (RMSE), overall and stratified by the true ICP value (≤ 20, 20–30 and > 30 mmHg). In addition, 10-fold patient-grouped cross-validation was performed on the training set, and RMSE was reported as mean ± standard deviation across folds.
 
 ### 1.4 §8 Evaluation and Validation (line 136) — optional, only if the Wilcoxon test is done (todo 3.5)
 
@@ -130,7 +152,8 @@ Replace with:
 
 - Regenerate all three tables from the final full-cohort run. Add rows: Random Forest, XGBoost, Baseline Mean.
 - Table 4: add an SD column (mean ± SD).
-- Table 5: rename the column "Non-Significant Feature Drop" to the corrected configuration name; add the "Lags + Pathology" column.
+- Table 5: rename the column "Non-Significant Feature Drop" to "Drop pH, SpO₂"; add the "Lags + Pathology" column.
+- New table (main text or supplement): test RMSE / MAE by true ICP range (≤ 20, 20–30, > 30 mmHg), from "Regression Results by True ICP Range (Test)" in the run output. Add one sentence to §2: "Stratified by the true ICP value, [TBD: the tree-based models had the lowest errors for ICP ≤ 20 mmHg, whereas … for ICP > 30 mmHg]."
 - Caption, Table 4 (line 183). Current: "…using 10-fold stratified group cross-validation." Replace: "…using 10-fold patient-grouped cross-validation on the training set. Values are mean ± standard deviation across folds." (Regression uses `GroupKFold`; it is not stratified.)
 - Caption, Table 5 (line 186). Current: "Regression model performance across different feature configurations in the full cohort". Replace: "Validation-set RMSE of regression models across different feature configurations in the full cohort".
 
@@ -178,6 +201,12 @@ Replace with:
 
 ---
 
+### 4.6 Limitations (line 267) — add one sentence after "…rapid physiological changes."
+
+> In addition, tree-based models cannot predict values outside the range observed in the training data, which limits their accuracy for rare, very high ICP values.
+
+(Use only if the stratified results confirm it, as in the run before the ICP > 100 removal.)
+
 ## 5. Not covered here
 
-- Classification results (§4, §5, Tables 9–12) probably also come from the older code version (two-way split). Check them separately.
+- Classification results (§4, §5, Tables 9–12) probably also come from the older code version (two-way split). They must be rerun, because the PEEP and ICP > 100 changes are in the shared preprocessing. The numbers in Results §4 line 211 (141,639 observations, 30,079 test samples) will change.

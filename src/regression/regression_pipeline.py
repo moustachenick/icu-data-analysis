@@ -17,6 +17,10 @@ from regression.baseline_mean_regression import BaselineMeanRegression
 
 ID_COLUMNS = ["patient_id", "timestamp"]
 
+# True-ICP ranges (mmHg) for the stratified test report.
+ICP_RANGE_BINS = [-np.inf, 20, 30, np.inf]
+ICP_RANGE_LABELS = ["≤20", "20-30", ">30"]
+
 
 def numeric_features(X):
     return X.select_dtypes(include=[np.number]).drop(columns=["patient_id"], errors="ignore")
@@ -164,6 +168,39 @@ class RegressionPipeline:
 
         return pd.DataFrame(metrics)
 
+    def __evaluate_by_icp_range(self, X_test, y_test):
+        """
+        RMSE and MAE on the test split, stratified by the TRUE ICP value. Aggregate RMSE is
+        dominated by the few high-ICP rows, so this shows where each model gains or loses.
+
+        Args:
+            X_test: Testing features.
+            y_test: Testing target variable.
+
+        Returns:
+            range_df: DataFrame with RMSE and MAE per ICP range for all models.
+        """
+        ranges = pd.cut(y_test, bins=ICP_RANGE_BINS, labels=ICP_RANGE_LABELS)
+        metrics = {"Model": list(self.models.keys())}
+
+        for label in ICP_RANGE_LABELS:
+            in_range = (ranges == label).to_numpy()
+            rmse_values, mae_values = [], []
+            for model_info in self.models.values():
+                if not in_range.any():
+                    rmse_values.append(np.nan)
+                    mae_values.append(np.nan)
+                    continue
+                predictions = model_info["model"].predict(model_info["column_selector"](X_test[in_range]))
+                rmse_values.append(np.sqrt(mean_squared_error(y_test[in_range], predictions)))
+                mae_values.append(mean_absolute_error(y_test[in_range], predictions))
+            metrics[f"RMSE {label} (n={in_range.sum()})"] = rmse_values
+            metrics[f"MAE {label}"] = mae_values
+
+        range_df = pd.DataFrame(metrics)
+        DataFramePrinter.print_dataframe_tabulated(range_df, "Regression Results by True ICP Range (Test)")
+        return range_df
+
     def __compute_feature_importance(self, X_train):
         """
         Display the coefficients of the trained Linear Regression and Lasso models, ordered by
@@ -239,7 +276,8 @@ class RegressionPipeline:
             "Full Dataset": ids + lags,
             "Lags 1-3-5": ids + [c for c in lags if c.rsplit("_lag_", 1)[1] in ["1", "3", "5"]],
             # Drop every lag of these variables (the bare columns are never model inputs).
-            "Drop PEEP, PH, SPO2": ids + [c for c in lags if base_variable(c) not in ["peep", "ph", "spo2"]],
+            # PEEP is excluded from the whole analysis in preprocessing.
+            "Drop PH, SPO2": ids + [c for c in lags if base_variable(c) not in ["ph", "spo2"]],
             "Extensive Drop": ids + [c for c in lags if c not in extensive_drop],
             "Lags + Pathology": ids + lags + pathology,
         }
@@ -352,6 +390,7 @@ class RegressionPipeline:
 
         # Final, single-use evaluation on the held-out test split.
         evaluation_results = self.__evaluate_models(X_test, y_test)
+        icp_range_results = self.__evaluate_by_icp_range(X_test, y_test)
         self.__compute_feature_importance(X_train)
         self.__compute_permutation_importance(X_val, y_val)
 
@@ -366,6 +405,7 @@ class RegressionPipeline:
         results = {
             "tuning_results": tuning_results,
             "evaluation_results": evaluation_results,
+            "icp_range_results": icp_range_results,
             "cross_validation_results": cross_validation_results,
             "feature_config_results": feature_config_results
         }

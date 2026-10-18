@@ -81,9 +81,17 @@ Open question for 1.3: "Extensive Drop" kept unchanged until the authors confirm
   (RMSE 2.14 vs. 2.32). Validation has 84 rows with ICP > 100 (6 patients), test has 2.
 - The Z-score (7) filter does NOT cap ICP at 100 mmHg (values up to 160 remain). Methods line 69
   of the manuscript says it does.
-- [ ] DECISION (authors): enforce an explicit ICP range 0–100 mmHg (as the manuscript states),
-      or keep the data and report the extreme-ICP effect.
-- [ ] DECISION: add metrics stratified by ICP range (≤ 20, 20–30, > 30) to the regression report.
+- [x] DECISION: enforce ICP ≤ 100 mmHg (STEP 8, after the Z-score step): 163 rows / 17 patients removed.
+- [x] DECISION: metrics stratified by true ICP (≤ 20, 20–30, > 30) added to the regression report.
+- [x] Reviewer request: PEEP excluded from the analysis (STEP 0, `EXCLUDED_VARIABLES`).
+
+### Run after ICP ≤ 100 + PEEP removal (`output/regression_20261018-181758.txt`)
+
+- Rows: train 70,141 / validation 27,191 / test 24,035.
+- RMSE: test RF 3.483, XGB 3.487, LR 3.540 | validation RF 2.905, XGB 2.931, LR 2.969 |
+  CV RF 3.325, XGB 3.349, LR 3.363. RF is now best on all three; the gain is ≈ 1–2 %.
+- By ICP range (test): trees best for ICP ≤ 20 (RMSE 2.72 vs. LR 2.88); for 20–30 and > 30,
+  persistence and LR are better than the trees.
 
 ## Phase 4 — Final runs for the manuscript
 
