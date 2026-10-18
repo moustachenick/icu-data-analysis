@@ -68,6 +68,23 @@ Open question for 1.3: "Extensive Drop" kept unchanged until the authors confirm
       best tree model vs. best linear model, on the test split.
 - [ ] 3.6 Check the run time. Grouped 10-fold CV × RF can be slow at ~100k rows.
 
+### Phase 3 status (run `output/regression_20261018-173849.txt`)
+
+- [x] 3.1–3.4 implemented; 3.5 not done; 3.6 run time acceptable.
+- Selected: Ridge α=10, Lasso α=0.01, RF depth 10 / leaf 20 / max_features 1.0,
+  XGB depth 3 / lr 0.03 / 500 trees / subsample 0.8. RF leaf and XGB depth/lr are at the grid edge.
+- RMSE: test RF 3.518, XGB 3.519, LR 3.578 | validation RF 3.61, XGB 3.84, LR 3.44 |
+  CV RF 3.482, LR 3.484, XGB 3.538. The ranking is not consistent across splits.
+- Cause (scratchpad `extrap.py`): trees cannot predict above the training range (max prediction
+  ≈ 112 vs. true values up to 160). Rows with ICP > 50 are 2 % of validation rows but 37–45 %
+  of the tree models' squared error. For ICP ≤ 20 (≈ 94 % of rows) trees are better
+  (RMSE 2.14 vs. 2.32). Validation has 84 rows with ICP > 100 (6 patients), test has 2.
+- The Z-score (7) filter does NOT cap ICP at 100 mmHg (values up to 160 remain). Methods line 69
+  of the manuscript says it does.
+- [ ] DECISION (authors): enforce an explicit ICP range 0–100 mmHg (as the manuscript states),
+      or keep the data and report the extreme-ICP effect.
+- [ ] DECISION: add metrics stratified by ICP range (≤ 20, 20–30, > 30) to the regression report.
+
 ## Phase 4 — Final runs for the manuscript
 
 - [ ] 4.1 Full cohort: `filter_by_pathology = ""` → run, save output.

@@ -2,11 +2,14 @@ import numpy as np
 import pandas as pd
 
 from sklearn.base import clone
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.inspection import permutation_importance
 from sklearn.linear_model import LinearRegression, Ridge, Lasso
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
-from sklearn.model_selection import GroupKFold, cross_val_score
+from sklearn.model_selection import GroupKFold, ParameterGrid, cross_val_score
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
+from xgboost import XGBRegressor
 
 from helper.data_frame_printer import DataFramePrinter
 from regression.baseline_history_regression import BaselineHistoryRegression
@@ -30,6 +33,7 @@ class RegressionPipeline:
 
         Each linear model is a Pipeline (StandardScaler -> model), so the scaler is always fitted
         on exactly the data the model is fitted on — including inside every CV training fold.
+        Tree models need no scaling. Models with a "param_grid" are tuned on the validation split.
         """
         self.models = {
             "Linear Regression": {
@@ -39,10 +43,31 @@ class RegressionPipeline:
             "Ridge Regression": {
                 "model": make_pipeline(StandardScaler(), Ridge()),
                 "column_selector": numeric_features,
+                "param_grid": {"ridge__alpha": [0.01, 0.1, 1, 10, 100]},
             },
             "Lasso Regression": {
                 "model": make_pipeline(StandardScaler(), Lasso(alpha=0.1)),
                 "column_selector": numeric_features,
+                "param_grid": {"lasso__alpha": [0.001, 0.01, 0.1, 1]},
+            },
+            "Random Forest": {
+                "model": RandomForestRegressor(n_estimators=300, n_jobs=-1, random_state=42),
+                "column_selector": numeric_features,
+                "param_grid": {
+                    "max_depth": [None, 10, 20],
+                    "min_samples_leaf": [1, 5, 20],
+                    "max_features": [1.0, "sqrt"],
+                },
+            },
+            "XGBoost": {
+                "model": XGBRegressor(n_jobs=-1, random_state=42),
+                "column_selector": numeric_features,
+                "param_grid": {
+                    "n_estimators": [200, 500],
+                    "max_depth": [3, 6, 9],
+                    "learning_rate": [0.03, 0.1],
+                    "subsample": [0.8, 1.0],
+                },
             },
             "Baseline History Regression": {
                 "model": BaselineHistoryRegression(),
@@ -53,6 +78,46 @@ class RegressionPipeline:
                 "column_selector": all_columns,
             }
         }
+
+    def __tune_hyperparameters(self, X_train, X_val, y_train, y_val):
+        """
+        Grid search on the VALIDATION split: fit every combination on the training split and
+        keep the one with the lowest validation RMSE. The selected parameters are set on the
+        model, so training, CV and the feature configurations all use them.
+
+        Args:
+            X_train: Training features.
+            X_val: Validation features.
+            y_train: Training target.
+            y_val: Validation target.
+
+        Returns:
+            tuning_df: DataFrame with the selected parameters and validation RMSE per model.
+        """
+        tuning = {"Model": [], "Selected Parameters": [], "Validation RMSE": []}
+
+        for name, model_info in self.models.items():
+            if "param_grid" not in model_info:
+                continue
+            X_train_selected = model_info["column_selector"](X_train)
+            X_val_selected = model_info["column_selector"](X_val)
+
+            best_params, best_rmse = None, np.inf
+            for params in ParameterGrid(model_info["param_grid"]):
+                model = clone(model_info["model"]).set_params(**params).fit(X_train_selected, y_train)
+                rmse = np.sqrt(mean_squared_error(y_val, model.predict(X_val_selected)))
+                if rmse < best_rmse:
+                    best_params, best_rmse = params, rmse
+
+            model_info["model"].set_params(**best_params)
+            tuning["Model"].append(name)
+            tuning["Selected Parameters"].append(best_params)
+            tuning["Validation RMSE"].append(best_rmse)
+            print(f"{name}: selected {best_params} (validation RMSE = {best_rmse:.4f})")
+
+        tuning_df = pd.DataFrame(tuning)
+        DataFramePrinter.print_dataframe_tabulated(tuning_df, "Hyperparameter Tuning Results (Validation)")
+        return tuning_df
 
     def __train_models(self, X_train, y_train):
         """
@@ -114,6 +179,27 @@ class RegressionPipeline:
             ordered = coefficients.reindex(coefficients.abs().sort_values(ascending=False).index)
             print(f"\n{name} Coefficients (signed), ordered by absolute value:")
             print(ordered)
+
+    def __compute_permutation_importance(self, X_val, y_val):
+        """
+        Permutation importance of the tree models on the VALIDATION split: the increase in RMSE
+        when one feature is shuffled. Unlike impurity-based importance, it is not biased toward
+        continuous features with many unique values.
+
+        Args:
+            X_val: Validation features.
+            y_val: Validation target.
+        """
+        for name in ["Random Forest", "XGBoost"]:
+            model_info = self.models[name]
+            X_val_selected = model_info["column_selector"](X_val)
+            result = permutation_importance(
+                model_info["model"], X_val_selected, y_val,
+                scoring="neg_root_mean_squared_error", n_repeats=5, random_state=42,
+            )
+            importance = pd.Series(result.importances_mean, index=X_val_selected.columns)
+            print(f"\n{name} Permutation Importance (validation RMSE increase), ordered by importance:")
+            print(importance.sort_values(ascending=False))
 
     @staticmethod
     def build_feature_configs(columns):
@@ -236,6 +322,7 @@ class RegressionPipeline:
     def run_pipeline(self, X_train, X_val, X_test, y_train, y_val, y_test, cv_folds=10):
         """
         Run the full pipeline with a three-way split:
+        - tune hyperparameters on the VALIDATION split,
         - train models on the training split,
         - select feature configurations on the VALIDATION split,
         - report final metrics ONCE on the held-out TEST split,
@@ -255,13 +342,18 @@ class RegressionPipeline:
         config_cols = lag_cols + [c for c in X_train.columns if c.startswith("pathology_")]
         X_train_configs, X_val_configs = X_train[config_cols], X_val[config_cols]
         X_train = X_train[lag_cols]
+        X_val = X_val[lag_cols]
         X_test = X_test[lag_cols]
+
+        print("Tuning hyperparameters on the validation split...")
+        tuning_results = self.__tune_hyperparameters(X_train, X_val, y_train, y_val)
 
         self.__train_models(X_train, y_train)
 
         # Final, single-use evaluation on the held-out test split.
         evaluation_results = self.__evaluate_models(X_test, y_test)
         self.__compute_feature_importance(X_train)
+        self.__compute_permutation_importance(X_val, y_val)
 
         print("Performing patient-grouped cross-validation on the training split...")
         cross_validation_results = self.__perform_cross_validation(X_train, y_train, cv_folds)
@@ -272,6 +364,7 @@ class RegressionPipeline:
         )
 
         results = {
+            "tuning_results": tuning_results,
             "evaluation_results": evaluation_results,
             "cross_validation_results": cross_validation_results,
             "feature_config_results": feature_config_results

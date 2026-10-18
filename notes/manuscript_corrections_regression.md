@@ -44,6 +44,19 @@ Add a new item 7 after "6. **Outlier Removal**":
 Note: the code runs this step before imputation. If the order of the list matters to the
 authors, insert it between items 4 and 5 instead.
 
+### 1.1b §3 item 6 Outlier Removal (line 69) — factual error
+
+The text says that the Z-score threshold of 7 "corresponds well to the clinically accepted
+physiological range of intracranial pressure (0–100 mmHg)". The data after this filter still
+contains ICP values up to 160 mmHg (train 50 rows / 8 patients > 100 mmHg; validation
+84 rows / 6 patients; test 2 rows / 1 patient). Correction depends on the authors' decision
+(see `tasks/todo.md`, Phase 3 status):
+
+- Option A — enforce 0–100 mmHg in the code: keep the sentence; add "and values above
+  100 mmHg were removed".
+- Option B — keep the data: delete "which corresponds well to … (0–100 mmHg)" and the
+  following sentence, and report the maximum retained ICP value.
+
 ### 1.2 §3 item 5 Imputation (line 67) — resolves the Greek note on that line
 
 Current:

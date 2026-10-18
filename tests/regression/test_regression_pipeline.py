@@ -75,14 +75,33 @@ class TestRegressionPipeline(unittest.TestCase):
         X_val, y_val = _make_split(range(20, 25), rng)
         X_test, y_test = _make_split(range(25, 30), rng)
 
-        results = RegressionPipeline().run_pipeline(X_train, X_val, X_test, y_train, y_val, y_test)
+        # Small grids and few trees keep the test fast; the tuning logic is the same.
+        pipeline = RegressionPipeline()
+        pipeline.models["Random Forest"]["model"].set_params(n_estimators=10, n_jobs=1)
+        pipeline.models["Random Forest"]["param_grid"] = {"max_depth": [None, 5]}
+        pipeline.models["XGBoost"]["model"].set_params(n_estimators=10, n_jobs=1)
+        pipeline.models["XGBoost"]["param_grid"] = {"max_depth": [3, 6]}
+
+        results = pipeline.run_pipeline(X_train, X_val, X_test, y_train, y_val, y_test)
 
         evaluation = results["evaluation_results"]
         self.assertIn("R²", evaluation.columns)
         self.assertNotIn("Accuracy (%)", evaluation.columns)
         self.assertTrue((evaluation["R²"] <= 1).all())
         self.assertIn("Lags + Pathology", results["feature_config_results"].columns)
-        self.assertEqual(len(results["cross_validation_results"]), len(RegressionPipeline().models))
+        self.assertEqual(len(results["cross_validation_results"]), len(pipeline.models))
+        self.assertIn("Random Forest", list(evaluation["Model"]))
+        self.assertIn("XGBoost", list(evaluation["Model"]))
+
+        tuning = results["tuning_results"]
+        self.assertEqual(
+            list(tuning["Model"]), ["Ridge Regression", "Lasso Regression", "Random Forest", "XGBoost"]
+        )
+        grids = {name: info["param_grid"] for name, info in pipeline.models.items()
+                 if "param_grid" in info}
+        for name, params in zip(tuning["Model"], tuning["Selected Parameters"]):
+            for key, value in params.items():
+                self.assertIn(value, grids[name][key], f"{name}: {key}")
 
 
 if __name__ == "__main__":
