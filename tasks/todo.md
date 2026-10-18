@@ -51,9 +51,9 @@ Open question for 1.3: "Extensive Drop" kept unchanged until the authors confirm
 
 ## Phase 3 — New models and tuning
 
-- [ ] 3.1 Add `RandomForestRegressor` (no scaling, `n_jobs=-1`, `random_state=42`).
-- [ ] 3.2 Add `XGBRegressor` (no scaling, `n_jobs=-1`, `random_state=42`).
-- [ ] 3.3 Tune all ML models on the validation split (same protocol for all):
+- [x] 3.1 Add `RandomForestRegressor` (no scaling, `n_jobs=-1`, `random_state=42`).
+- [x] 3.2 Add `XGBRegressor` (no scaling, `n_jobs=-1`, `random_state=42`).
+- [x] 3.3 Tune all ML models on the validation split (same protocol for all):
       - Ridge: `alpha` ∈ {0.01, 0.1, 1, 10, 100}
       - Lasso: `alpha` ∈ {0.001, 0.01, 0.1, 1}
       - RF: `n_estimators` ∈ {200, 500}, `max_depth` ∈ {None, 10, 20},
@@ -63,10 +63,10 @@ Open question for 1.3: "Extensive Drop" kept unchanged until the authors confirm
       - Linear Regression and the baselines have no hyperparameters.
       Select by validation RMSE; refit on train; report on test once.
       Print the selected hyperparameters (needed for the manuscript).
-- [ ] 3.4 Permutation importance (validation split) for RF and XGB.
+- [x] 3.4 Permutation importance (validation split) for RF and XGB.
 - [x] 3.5 Wilcoxon signed-rank test on per-patient MAE,
       best tree model vs. best linear model, on the test split.
-- [ ] 3.6 Check the run time. Grouped 10-fold CV × RF can be slow at ~100k rows.
+- [x] 3.6 Check the run time. Grouped 10-fold CV × RF can be slow at ~100k rows.
 
 ### Phase 3 status (run `output/regression_20261018-173849.txt`)
 
