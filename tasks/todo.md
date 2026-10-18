@@ -64,7 +64,7 @@ Open question for 1.3: "Extensive Drop" kept unchanged until the authors confirm
       Select by validation RMSE; refit on train; report on test once.
       Print the selected hyperparameters (needed for the manuscript).
 - [ ] 3.4 Permutation importance (validation split) for RF and XGB.
-- [ ] 3.5 Optional (decide at review): Wilcoxon signed-rank test on per-patient MAE,
+- [x] 3.5 Wilcoxon signed-rank test on per-patient MAE,
       best tree model vs. best linear model, on the test split.
 - [ ] 3.6 Check the run time. Grouped 10-fold CV × RF can be slow at ~100k rows.
 
@@ -95,11 +95,11 @@ Open question for 1.3: "Extensive Drop" kept unchanged until the authors confirm
 
 ## Phase 4 — Final runs for the manuscript
 
-- [ ] 4.1 Full cohort: `filter_by_pathology = ""` → run, save output.
-- [ ] 4.2 TBI subgroup: `filter_by_pathology = "TBI"` → run, save output.
+- [x] 4.1 Full cohort: `filter_by_pathology = ""` → run, save output.
+- [x] 4.2 TBI subgroup: `filter_by_pathology = "TBI"` → run, save output.
       WARNING: the cached CSVs do not include the cohort in their file names. Run
       `clean_generated_files.sh` before each cohort switch.
-- [ ] 4.3 Fill the `[TBD]` values in `notes/manuscript_corrections_regression.md`.
+- [x] 4.3 Fill the `[TBD]` values in `notes/manuscript_corrections_regression.md`.
 - [ ] 4.4 Regenerate Tables 3–8 for the manuscript.
 
 ## Out of scope (flag only)
@@ -109,4 +109,12 @@ Open question for 1.3: "Extensive Drop" kept unchanged until the authors confirm
 
 ## Review
 
-(to be filled after completion)
+Final outputs: regression full `output/regression_20261018-190934.txt`, TBI `output/regression_20261018-195204.txt`;
+classification full `output/classification_20261018-193100.txt`, TBI `output/classification_20261018-201243.txt`.
+
+- RF is the best regression model in both cohorts on test, validation and CV, but the gain over
+  linear models is small (per-patient MAE −0.04 to −0.06 mmHg, p < 0.001).
+- No ML model has a significantly lower per-patient MAE than the persistence baseline.
+- For true ICP > 20 mmHg, no model beats persistence.
+- Open: per-patient MSE test (decision); 'Extensive Drop' definition; regenerate Tables 3–8;
+  classification text (results changed, outside this plan).
