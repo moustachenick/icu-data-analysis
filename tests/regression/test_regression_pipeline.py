@@ -92,6 +92,10 @@ class TestRegressionPipeline(unittest.TestCase):
         icp_ranges = results["icp_range_results"]
         self.assertEqual(len(icp_ranges), len(pipeline.models))
         self.assertTrue(any(c.startswith("RMSE ≤20") for c in icp_ranges.columns))
+
+        wilcoxon_results = results["wilcoxon_results"]
+        self.assertTrue((wilcoxon_results["Patients"] == 5).all())  # unit = test patient, not row
+        self.assertTrue(wilcoxon_results["p-value"].between(0, 1).all())
         self.assertEqual(len(results["cross_validation_results"]), len(pipeline.models))
         self.assertIn("Random Forest", list(evaluation["Model"]))
         self.assertIn("XGBoost", list(evaluation["Model"]))

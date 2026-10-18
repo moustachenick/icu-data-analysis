@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 
+from scipy.stats import wilcoxon
 from sklearn.base import clone
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.inspection import permutation_importance
@@ -20,6 +21,15 @@ ID_COLUMNS = ["patient_id", "timestamp"]
 # True-ICP ranges (mmHg) for the stratified test report.
 ICP_RANGE_BINS = [-np.inf, 20, 30, np.inf]
 ICP_RANGE_LABELS = ["≤20", "20-30", ">30"]
+
+# (model, reference) pairs for the per-patient Wilcoxon signed-rank test: tree vs. linear
+# models (reviewer question) and ML models vs. the persistence baseline.
+WILCOXON_PAIRS = [
+    ("Random Forest", "Linear Regression"),
+    ("XGBoost", "Linear Regression"),
+    ("Linear Regression", "Baseline History Regression"),
+    ("Random Forest", "Baseline History Regression"),
+]
 
 
 def numeric_features(X):
@@ -200,6 +210,40 @@ class RegressionPipeline:
         range_df = pd.DataFrame(metrics)
         DataFramePrinter.print_dataframe_tabulated(range_df, "Regression Results by True ICP Range (Test)")
         return range_df
+
+    def __compare_models_wilcoxon(self, X_test, y_test):
+        """
+        Wilcoxon signed-rank test on per-patient MAE in the test split. The patient is the unit
+        of analysis, because rows of one patient are not independent.
+
+        Args:
+            X_test: Testing features (must include 'patient_id').
+            y_test: Testing target variable.
+
+        Returns:
+            wilcoxon_df: DataFrame with the median per-patient MAE difference and p-value per pair.
+        """
+        patient_mae = {}
+        for name, model_info in self.models.items():
+            predictions = model_info["model"].predict(model_info["column_selector"](X_test))
+            abs_errors = pd.Series(np.abs(y_test.to_numpy() - predictions), index=X_test.index)
+            patient_mae[name] = abs_errors.groupby(X_test["patient_id"]).mean()
+
+        comparisons = {"Model": [], "Reference": [], "Patients": [],
+                       "Median MAE Difference": [], "p-value": []}
+        for model, reference in WILCOXON_PAIRS:
+            differences = patient_mae[model] - patient_mae[reference]
+            comparisons["Model"].append(model)
+            comparisons["Reference"].append(reference)
+            comparisons["Patients"].append(len(differences))
+            comparisons["Median MAE Difference"].append(differences.median())
+            comparisons["p-value"].append(wilcoxon(patient_mae[model], patient_mae[reference]).pvalue)
+
+        wilcoxon_df = pd.DataFrame(comparisons)
+        DataFramePrinter.print_dataframe_tabulated(
+            wilcoxon_df, "Wilcoxon Signed-Rank Test on Per-Patient MAE (Test; negative difference = model better)"
+        )
+        return wilcoxon_df
 
     def __compute_feature_importance(self, X_train):
         """
@@ -391,6 +435,7 @@ class RegressionPipeline:
         # Final, single-use evaluation on the held-out test split.
         evaluation_results = self.__evaluate_models(X_test, y_test)
         icp_range_results = self.__evaluate_by_icp_range(X_test, y_test)
+        wilcoxon_results = self.__compare_models_wilcoxon(X_test, y_test)
         self.__compute_feature_importance(X_train)
         self.__compute_permutation_importance(X_val, y_val)
 
@@ -406,6 +451,7 @@ class RegressionPipeline:
             "tuning_results": tuning_results,
             "evaluation_results": evaluation_results,
             "icp_range_results": icp_range_results,
+            "wilcoxon_results": wilcoxon_results,
             "cross_validation_results": cross_validation_results,
             "feature_config_results": feature_config_results
         }
