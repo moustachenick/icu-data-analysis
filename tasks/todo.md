@@ -100,7 +100,7 @@ Open question for 1.3: "Extensive Drop" kept unchanged until the authors confirm
       WARNING: the cached CSVs do not include the cohort in their file names. Run
       `clean_generated_files.sh` before each cohort switch.
 - [x] 4.3 Fill the `[TBD]` values in `notes/manuscript_corrections_regression.md`.
-- [ ] 4.4 Regenerate Tables 3–8 for the manuscript.
+- [x] 4.4 Tables 3–12 are images: regeneration handed to the co-author (note in both corrections files).
 
 ## Out of scope (flag only)
 

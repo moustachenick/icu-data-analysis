@@ -7,6 +7,25 @@ shared preprocessing, so they also affect the classification results.
 Approach: minimal changes. Each item quotes the current text and gives the replacement.
 `[TBD]` marks a value that comes from the final runs (see `tasks/todo.md`, Phase 4).
 
+## NOTE FOR THE CO-AUTHOR — tables are images
+
+Tables 3–8 in the manuscript are embedded images (`image5`–`image10`). They cannot be edited as
+text. Regenerate them from the output files, plus the new stratified table (section 2.6) and
+the supplementary hyperparameter table (section 1.5):
+
+| Table | Source file | Source table in the output |
+|---|---|---|
+| 3 (full, test) | `output/regression_20261018-190934.txt` | "Regression Predictions Results (Test)" |
+| 4 (full, CV) | same | "Cross-Validation Results (Train, grouped)" |
+| 5 (full, configurations) | same | "Feature Configuration RMSE Results (Validation)" |
+| new (full, by ICP range) | same | "Regression Results by True ICP Range (Test)" |
+| 6 (TBI, test) | `output/regression_20261018-195204.txt` | "Regression Predictions Results (Test)" |
+| 7 (TBI, CV) | same | "Cross-Validation Results (Train, grouped)" |
+| 8 (TBI, configurations) | same | "Feature Configuration RMSE Results (Validation)" |
+| Suppl. (hyperparameters) | both files | "Hyperparameter Tuning Results (Validation)" |
+
+Table 4 / 7: show mean ± SD. Use R² only if the authors want it; the old tables do not have it.
+
 ## 0. Why the numbers change
 
 The current regression numbers in the manuscript come from an older code version. Three
@@ -99,7 +118,7 @@ Replace with:
 
 > Pairwise differences between models were assessed with the Wilcoxon signed-rank test on per-patient MAE in the test set, with the patient as the unit of analysis.
 
-Open decision (see the status report): also report the same test on per-patient MSE. If yes, add "and per-patient MSE" to this sentence.
+Decision (2026-10-18): report the MAE-based test only.
 
 ### 1.5 Supplementary table — selected hyperparameters (replaces "Supplementary Table [TBD]" in 1.3)
 
@@ -208,7 +227,7 @@ Regenerate; captions as for Tables 3–5. Optional: stratified table for TBI (te
 
 ## 4. Discussion
 
-IMPORTANT: The per-patient Wilcoxon results do not support "ML models outperformed the baselines" for regression. The RMSE gap (3.48–3.54 vs. 3.80) comes from fewer large errors, not from a better typical patient. The text below reflects this. If the authors decide to add the per-patient MSE test, revisit 4.1 and 4.5.
+IMPORTANT: The per-patient Wilcoxon results do not support "ML models outperformed the baselines" for regression. The RMSE gap (3.48–3.54 vs. 3.80) comes from fewer large errors, not from a better typical patient. The text below reflects this.
 
 ### 4.1 Line 249
 
