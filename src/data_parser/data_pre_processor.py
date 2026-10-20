@@ -31,6 +31,13 @@ class DataPreProcessor:
         'peep': (0.0, 30.0),
     }
 
+    # Variables excluded from the analysis. PEEP was removed at the reviewers' request
+    # (low clinical relevance for ICP prediction); it is still reported in the descriptive stats.
+    EXCLUDED_VARIABLES = ['peep']
+
+    # Upper limit of the validated ICP measurement range of the monitoring devices (AAMI).
+    ICP_DEVICE_RANGE_MAX = 100.0
+
     def __init__(self, raw_data_file_path, config):
         self.raw_data_file_path = raw_data_file_path
         # Run configuration (see helper.config.AppConfig) drives the preprocessing steps
@@ -67,6 +74,11 @@ class DataPreProcessor:
 
         df = self.transform_all_columns_to_float(df)
 
+        # Before the missing-value steps, so an excluded variable cannot cause a row drop or
+        # influence the KNN imputation distances.
+        print(f"\n~~~~ STEP 0: Dropping excluded variables {self.EXCLUDED_VARIABLES} ~~~~\n")
+        df = df.drop(columns=self.EXCLUDED_VARIABLES, errors='ignore')
+
         print("\n~~~~ STEP 1: Deleting rows with negative ICP values ~~~~\n")
         df = self.delete_negative_icp_values(df)
 
@@ -93,6 +105,10 @@ class DataPreProcessor:
         print("\n~~~~ STEP 7: Cleaning ICP outliers ~~~~\n")
         df = self.clean_icp_outliers(df)
         print(f"Number of rows in the dataset after the cleaning: {df.shape[0]}")
+
+        # After STEP 7, so the Z-score statistics are computed on the same data as before.
+        print(f"\n~~~~ STEP 8: Deleting rows with ICP above {self.ICP_DEVICE_RANGE_MAX} mmHg ~~~~\n")
+        df = self.delete_icp_values_above_device_range(df)
 
         print("\nCleaning complete (imputation + lagging happen after the split).")
         print(f"Number of rows in the cleaned dataset: {df.shape[0]}")
@@ -444,6 +460,18 @@ class DataPreProcessor:
 
         return df
 
+    def delete_icp_values_above_device_range(self, df):
+        """
+        Delete rows with ICP above the validated device range (0-100 mmHg, AAMI). These values
+        are mostly sustained terminal episodes with CPP near zero, where prediction has no
+        clinical use; they are out of scope rather than artifacts.
+        """
+        above_range = df['icp'] > self.ICP_DEVICE_RANGE_MAX
+        print(f"Rows with ICP > {self.ICP_DEVICE_RANGE_MAX}: {int(above_range.sum())} "
+              f"from {df.loc[above_range, 'patient_id'].nunique()} patients")
+        print("Total Rows after deletion =", int((~above_range).sum()))
+        return df[~above_range]
+
     def clean_icp_outliers(self, cleaned_df):
         # Detect and remove outliers in the 'icp' column using the Z-score method
         # Calculate the Z-scores for each value in the 'icp' column
@@ -483,7 +511,7 @@ class DataPreProcessor:
         # Create lagged features
         columns_to_lag = [
             "icp", "temperature", "mean_blood_pressure", "cpp", "glucose",
-            "haemoglobin", "heart_rate", "paco2", "pao2", "peep", "ph", "spo2"
+            "haemoglobin", "heart_rate", "paco2", "pao2", "ph", "spo2"
         ]
         time_series_processor = TimeSeriesProcessor()
         data = time_series_processor.process_data(
