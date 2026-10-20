@@ -107,7 +107,7 @@ Raw ICU .txt files (one per variable: ICP, CPP, Glucose, ...)
                 │
                 ▼
           Model evaluation results printed to console
-          xgboost_feature_importance.png saved to root (classification)
+          xgboost_feature_importance*.png saved to root (classification)
 ```
 
 ---
@@ -252,7 +252,7 @@ Trains and evaluates six classifier variants, runs pairwise statistical tests.
 - `StratifiedGroupKFold(n_splits=10, shuffle=True, random_state=42)` grouped by `patient_id` — prevents patient data leakage
 - Stratified on `icp_binary`; runs on the training split only (`classification.run_cross_validation`)
 
-**Feature importance:** gain-based plots for three XGBoost variants. All three are saved to the same file, `xgboost_feature_importance.png` in the working directory, so only the last one (lag-only, configured) remains.
+**Feature importance:** gain-based plots for three XGBoost variants, saved in the working directory as `xgboost_feature_importance.png` (default), `xgboost_feature_importance_lag_only.png` and `xgboost_feature_importance_lag_only_with_params.png`.
 
 ---
 
@@ -346,7 +346,7 @@ Standalone script (not part of the main pipeline). Reads `cleaned_df_classificat
 
 1. **Cohort summary** — total observations, unique patients, median observations per patient
 2. **Patient demographics** — age at admission by age band: `<18`, `18–34`, `35–44`, `45–54`, `55–64`, `65–74`, `75–84`, `85+`
-3. **Clinical variable statistics** — mean, std, median, missing % for the clinical variables present in the file. `respiration_rate` and `peep` are listed in `CLINICAL_COLUMNS` (labelled "dropped"), but both are removed during cleaning, so they are skipped. PEEP statistics need `final_data.csv`.
+3. **Clinical variable statistics** — mean, std, median, missing % for the clinical variables present in the file. `peep` is removed during cleaning, so `add_excluded_variables()` adds it from `final_data.csv` for the cleaned rows, with the same sentinel and range cleaning as the pipeline (labelled "dropped"). `respiration_rate` is also removed during cleaning (step 6) and is skipped.
 
 Age at admission is computed as `first_measurement_timestamp − date_of_birth`.
 
