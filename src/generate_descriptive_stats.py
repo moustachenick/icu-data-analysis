@@ -6,12 +6,16 @@ Prints a formatted console table and a markdown table.
 
 import sys
 import os
+import numpy as np
 import pandas as pd
 
 sys.path.insert(0, os.path.dirname(__file__))
+from data_parser.data_pre_processor import DataPreProcessor
 from helper.data_frame_printer import DataFramePrinter
 
 DATA_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "cleaned_df_classification.csv")
+# The cleaned data no longer contains the excluded variables (PEEP); they are read from here.
+RAW_DATA_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "final_data.csv")
 
 CLINICAL_COLUMNS = [
     "icp",
@@ -119,6 +123,31 @@ def patient_summary(df: pd.DataFrame) -> None:
     print()
 
 
+def add_excluded_variables(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Add the variables that cleaning excludes from the analysis (PEEP), for the rows of the
+    cleaned dataset only, so that the descriptive statistics describe the analysed rows.
+    The values get the cleaning the pipeline applied before the exclusion: the -1 sentinel
+    becomes NaN, and values outside PHYSIOLOGIC_RANGES become NaN.
+    """
+    excluded = [c for c in DataPreProcessor.EXCLUDED_VARIABLES if c not in df.columns]
+    if not excluded:
+        return df
+
+    raw = pd.read_csv(RAW_DATA_PATH, usecols=["patient_id", "timestamp"] + excluded)
+    for col in excluded:
+        values = pd.to_numeric(raw[col], errors="coerce").replace(-1, np.nan)
+        if col in DataPreProcessor.PHYSIOLOGIC_RANGES:
+            low, high = DataPreProcessor.PHYSIOLOGIC_RANGES[col]
+            values = values.where(values.between(low, high))
+        raw[col] = values
+
+    merged = df.merge(raw, on=["patient_id", "timestamp"], how="left", validate="one_to_one")
+    print(f"Added excluded variables {excluded} from {os.path.basename(RAW_DATA_PATH)} "
+          f"for {len(merged):,} cleaned rows.")
+    return merged
+
+
 def build_stats_df(df: pd.DataFrame) -> pd.DataFrame:
     present_cols = [c for c in CLINICAL_COLUMNS if c in df.columns]
     total_rows = len(df)
@@ -148,7 +177,7 @@ def main() -> None:
     cohort_summary(df)
     patient_summary(df)
 
-    stats_df = build_stats_df(df)
+    stats_df = build_stats_df(add_excluded_variables(df))
 
     DataFramePrinter.print_dataframe_tabulated(stats_df, title="Descriptive Statistics — Clinical Variables")
 
