@@ -180,8 +180,10 @@ class ClassificationPipeline:
         # Plot feature importances (only for the final test report to avoid overwriting the PNG twice).
         if plot:
             self.plot_xgboost_feature_importances(xg_boost_predictor.model)
-            self.plot_xgboost_feature_importances(xgb_lagonly.model, title="XGBoost Feature Importances (Lag Only)")
-            self.plot_xgboost_feature_importances(xgb_lagonly_params.model, title="XGBoost Feature Importances (Lag Only, With Params)")
+            self.plot_xgboost_feature_importances(xgb_lagonly.model, title="XGBoost Feature Importances (Lag Only)",
+                                                  filename="xgboost_feature_importance_lag_only.png")
+            self.plot_xgboost_feature_importances(xgb_lagonly_params.model, title="XGBoost Feature Importances (Lag Only, With Params)",
+                                                  filename="xgboost_feature_importance_lag_only_with_params.png")
 
         return results
 
@@ -328,7 +330,8 @@ class ClassificationPipeline:
         summary_df = pd.DataFrame(summary)
         DataFramePrinter.print_dataframe_tabulated(summary_df, "10-Fold Cross-Validation Results (Mean ± Std Dev)")
 
-    def plot_xgboost_feature_importances(self, model, title="XGBoost Feature Importances"):
+    def plot_xgboost_feature_importances(self, model, title="XGBoost Feature Importances",
+                                         filename="xgboost_feature_importance.png"):
         importances = model.get_booster().get_score(importance_type='gain')
         importance_df = pd.DataFrame(importances.items(), columns=["Feature", "Importance"])
         importance_df = importance_df.sort_values(by="Importance", ascending=False)
@@ -345,6 +348,6 @@ class ClassificationPipeline:
         plt.yticks(fontsize=8)
         plt.gca().invert_yaxis()  
         plt.tight_layout()
-        plt.savefig("xgboost_feature_importance.png", dpi=300)
-        print("Saved clean feature importance plot as 'xgboost_feature_importance.png'")
+        plt.savefig(filename, dpi=300)
+        print(f"Saved clean feature importance plot as '{filename}'")
         plt.close()

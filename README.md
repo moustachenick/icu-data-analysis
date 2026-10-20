@@ -2,7 +2,15 @@
 
 ## About
 
-This is a project that reads ICU data files, generates train/test datasets, and runs a Regression or Classification pipeline.
+This project reads ICU data files, builds patient-level train/validation/test datasets, and runs a Regression or
+Classification pipeline to predict Intracranial Pressure (ICP).
+
+- **Regression** predicts the ICP value (mmHg) with Linear, Ridge and Lasso regression, Random Forest and XGBoost,
+  compared with two rule-based baselines.
+- **Classification** predicts elevated ICP (≥ 22 mmHg) with XGBoost variants, compared with two rule-based baselines.
+
+For a file-by-file technical reference, see [`notes/summary.md`](notes/summary.md). For the order of the processing
+stages and the safeguards against information leakage, see [`notes/pipeline_explanation.md`](notes/pipeline_explanation.md).
 
 ## How to use
 
@@ -66,7 +74,7 @@ venv/bin/pip install -r requirements.txt
 
 ## About the data files directory
 
-When running the script, you need to provide the path to the directory containing the ICU data files, in `.txt` format.
+The script reads the ICU data files from the `data/` directory at the project root, in `.txt` format.
 The directory should have the following structure:
 
 ``` text
@@ -143,10 +151,17 @@ model/feature selection is kept off the test set**, see
 mode  = "regression"   # "regression" or "classification"
 hours = 5              # lag lookback window; drives icp_lag_1 ... icp_lag_N
 
+[split]
+# Patient-level three-way split (patients are disjoint across train/validation/test).
+# Fractions of the whole cohort; train = 1 - test_size - val_size (default 60/20/20).
+# Validation is used for model/feature selection; test is the final held-out report.
+test_size = 0.2
+val_size  = 0.2
+
 [preprocessing]
-add_pathology_one_hot     = false  # add one-hot encoded pathology columns
+add_pathology_one_hot     = true  # add one-hot encoded pathology columns
 drop_high_missing_columns = true   # drop respiration_rate + rows with >1 missing value
-impute_missing_values     = true   # KNN-impute (n_neighbors=1) rows with exactly 1 missing value
+impute_missing_values     = true    # causal 1-NN impute of rows with exactly 1 missing value (manuscript setting)
 drop_lagged_null_rows     = true   # drop rows with null values in lagged columns
 
 [parsing]
@@ -154,7 +169,7 @@ filter_by_pathology      = ""      # pathology code to keep; "" = include all pa
 apply_instance_filtering = true    # restrict dataset to patients in pathologies_filtered.csv
 
 [classification]
-run_cross_validation = false       # run the 10-fold cross-validation after the main pipeline
+run_cross_validation = true       # run the 10-fold cross-validation after the main pipeline
 ```
 
 The CLI flags `--mode` and `--hours` override the corresponding `[run]` values, e.g.:
@@ -163,31 +178,24 @@ The CLI flags `--mode` and `--hours` override the corresponding `[run]` values, 
 python src/main.py --mode classification --hours 8
 ```
 
-After the preprocessing steps, the lagged datasets will be created and saved to the `data/` directory.
-
-For Regression, it would be:
-
-```text
-data/train_data.csv
-
-data/test_data.csv
-```
-
-For Classification, it would be:
+After the preprocessing steps, the datasets are created and saved to the `data/` directory (`{mode}` is
+`regression` or `classification`):
 
 ```text
-data/train_data_classification.csv
-
-data/test_data_classification.csv
+data/final_data.csv                 merged raw data (shared by both modes)
+data/cleaned_df_{mode}.csv          cleaned data, before imputation and lag features
+data/train_data_{mode}.csv          training split (imputed, with lag features)
+data/validation_data_{mode}.csv     validation split (model and feature selection)
+data/test_data_{mode}.csv           test split (final evaluation)
 ```
 
-**Notice**: If you want the pre-precessing steps to run again, you should delete the `data/train_data.csv`,
-`data/test_data.csv`, `data/train_data_classification.csv`, `data/test_data_classification.csv`, `data/final_data.csv`,
-and `data/cleaned_df_lagged` files. The script will then re-run the preprocessing steps using your `config.toml`.
+**Notice**: these files are cached. If they exist, the script reuses them and skips the steps that create them.
+Run `clean_generated_files.sh` to delete them:
 
-You can also do that by running the provided `clean_generated_files.sh` script, which will delete all the aforementioned
-generated
-files.
+- after any change in `DataParser` or `DataPreProcessor`, and
+- before you change `filter_by_pathology` (e.g. for the TBI subgroup), because the file names do not include the cohort.
+
+Otherwise the run uses stale data without a warning.
 
 ## Testing
 
@@ -196,9 +204,14 @@ The project includes some basic testing using the `pytest` package and the `unit
 You can run the tests by running:
 
 ```shell
-# Windows
+# Miniconda/Anaconda
+conda run -n icu-data-analysis python -m pytest
+
+# Windows (venv)
 venv/Scripts/pytest tests/
 
-# Linux
+# Linux (venv)
 venv/bin/pytest tests/
 ```
+
+The tests use small synthetic data and do not need the files in `data/`.
