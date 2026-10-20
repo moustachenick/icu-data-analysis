@@ -47,7 +47,7 @@ Resolved 1.3 follow-up: "Extensive Drop" replaced by "ICP Lags Only" (commit d94
 
 - [x] Resolved by Phase 0: stale caches without the physiologic-range cleaning. With fresh
       data, Linear Regression worst fold = 4.07, SD = 0.38. No code change needed.
-      Documented in `notes/linear_regression_cv_anomaly.md`.
+      Cause: cached CSVs from 2026-06-19 still held impossible values (e.g. pH = 21).
 
 ## Phase 3 — New models and tuning
 

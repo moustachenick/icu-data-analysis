@@ -375,7 +375,6 @@ class RegressionPipeline:
             # Per-fold RMSE, then mean +/- SD across folds. Reporting the spread (rather than
             # the single sqrt(mean fold MSE) figure used previously) is standard practice and
             # keeps one pathological fold from silently dominating the headline number.
-            # See notes/linear_regression_cv_anomaly.md.
             fold_rmses = np.sqrt(-scores)
             cv_results["Model"].append(name)
             cv_results["Mean CV RMSE"].append(fold_rmses.mean())
