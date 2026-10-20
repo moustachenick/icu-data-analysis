@@ -29,7 +29,7 @@ icu-data-analysis/
 │   ├── generate_descriptive_stats.py  # Standalone script for cohort statistics
 │   ├── data_parser/
 │   │   ├── data_parser.py             # Parses raw .txt files into final_data.csv
-│   │   ├── data_pre_processor.py      # 8-step cleaning + feature engineering
+│   │   ├── data_pre_processor.py      # cleaning (steps 0–8), causal imputation, lag features
 │   │   ├── binary_data_processor.py   # Converts ICP to binary label (≥22 mmHg)
 │   │   └── time_series_processor.py   # Creates lagged features per patient
 │   ├── classification/
@@ -42,9 +42,10 @@ icu-data-analysis/
 │   │   ├── regression.py                     # Abstract base class
 │   │   ├── baseline_history_regression.py
 │   │   ├── baseline_mean_regression.py
-│   │   ├── baseline_time_window_mean_regression.py
 │   │   └── regression_model_plotter.py
 │   ├── helper/
+│   │   ├── config.py                  # Loads config.toml (created from config.example.toml)
+│   │   ├── output_logger.py           # Mirrors console output to output/{mode}_{timestamp}.txt
 │   │   └── data_frame_printer.py      # Pretty-print DataFrames via tabulate
 │   ├── test_debugging_scripts/        # Developer scratch scripts (not production)
 │   ├── icu_data_parser/               # Legacy — empty, superseded by data_parser/
@@ -64,22 +65,26 @@ Raw ICU .txt files (one per variable: ICP, CPP, Glucose, ...)
    ├─ parse()            — reads each file, rounds timestamps to 30-min grid,
    │                        deduplicates via running average (Welford's method)
    ├─ create_final_data() — pivots nested map to one row per (patient, timestamp)
-   ├─ filter_instances() — interactive: user can filter to a single pathology
+   ├─ filter_instances() — restricts to patients in pathologies_filtered.csv; optional
+   │                        single-pathology filter (config: parsing.*)
    ├─ fix_missing_values()— forward-fill within 30-min window (certain variables
    │                        forward-fill within same calendar day)
    └─ → data/final_data.csv
         │
         ▼
  DataPreProcessor.pre_process_dataset()     [data_parser/data_pre_processor.py]
-   Step 1: add_pathology_one_hot_features() — optional; reads pathologies_filtered.csv
-   Step 2: transform_all_columns_to_float()
-   Step 3: delete_negative_icp_values()
-   Step 4: drop patients with ≤2 rows
-   Step 5: drop_rows_with_null_target_column() — drop null ICP rows
-   Step 6: standardize_missing_values()     — [-1, '--', '.', '/'] → NaN
-   Step 7: drop_columns_with_high_missing_values() — drop respiration_rate,
+   Pre:    add_pathology_one_hot_features() — optional; reads pathologies_filtered.csv
+   Pre:    transform_all_columns_to_float()
+   Step 0: drop EXCLUDED_VARIABLES (peep)
+   Step 1: delete_negative_icp_values()
+   Step 2: drop patients with ≤2 rows
+   Step 3: drop_rows_with_null_target_column() — drop null ICP rows
+   Step 4: standardize_missing_values()     — [-1, '--', '.', '/'] → NaN
+   Step 5: clean_physiologic_outliers()     — out-of-range values → NaN
+   Step 6: drop_columns_with_high_missing_values() — drop respiration_rate,
            then drop rows with >1 missing value
-   Step 8: clean_icp_outliers()             — Z-score > 7
+   Step 7: clean_icp_outliers()             — Z-score > 7
+   Step 8: delete_icp_values_above_device_range() — ICP > 100 mmHg
    (cleaning stops here — impute & lag now happen AFTER the split)
    └─ → data/cleaned_df_{mode}.csv
         │
@@ -102,7 +107,7 @@ Raw ICU .txt files (one per variable: ICP, CPP, Glucose, ...)
                 │
                 ▼
           Model evaluation results printed to console
-          xgboost_feature_importance.png saved to root
+          xgboost_feature_importance.png saved to root (classification)
 ```
 
 ---
@@ -122,7 +127,7 @@ Merges 13 raw ICU variable files into a single time-aligned CSV.
 | `parse_file(file, col)` | Reads CSV rows; rounds timestamps; merges duplicates via running average |
 | `parse_episodes_with_high_icp()` | Extracts `date_of_birth` from the episodes file |
 | `create_final_data()` | Flattens nested `patient_id → timestamp → column → value` map |
-| `filter_instances()` | Interactive pathology filter (reads `pathologies_filtered.csv`) |
+| `filter_instances()` | Restricts to patients in `pathologies_filtered.csv` (`parsing.apply_instance_filtering`); optional single-pathology filter (`parsing.filter_by_pathology`) |
 | `fix_missing_values()` | Forward-fill per patient; general: 30-min window; special vars: same-day |
 
 **Time rounding logic** (`custom_round_time`):
@@ -133,7 +138,7 @@ Merges 13 raw ICU variable files into a single time-aligned CSV.
 **Special forward-fill variables** (same-day, not just 30-min):
 `glucose`, `haemoglobin`, `paco2`, `pao2`, `ph`
 
-**Default missing value sentinel:** `-1` (except `peep` which defaults to `0`)
+**Default missing value sentinel:** `-1` (except `peep` which defaults to `0`). `peep` is parsed but excluded from the analysis in `DataPreProcessor` (step 0).
 
 ---
 
@@ -143,7 +148,7 @@ Multi-step cleaning, then (post-split) causal imputation and feature engineering
 
 **Constructor:** `DataPreProcessor(raw_data_file_path, config)`
 
-**Main method:** `pre_process_dataset(hours, mode)` — cleaning STEPS 1-6 only, cached to `cleaned_df_{mode}.csv`. Imputation and lagging are exposed as separate methods (`causal_knn_impute`, `add_lagged_features`) that `main.py` calls **after** the patient-level split.
+**Main method:** `pre_process_dataset(hours, mode)` — cleaning steps 0–8 only, cached to `cleaned_df_{mode}.csv`. Imputation and lagging are exposed as separate methods (`causal_knn_impute`, `add_lagged_features`) that `main.py` calls **after** the patient-level split.
 
 **Cleaning step details (in `pre_process_dataset`):**
 
@@ -151,12 +156,15 @@ Multi-step cleaning, then (post-split) causal imputation and feature engineering
 |------|--------|-------|
 | — | `add_pathology_one_hot_features()` | Config-gated (`preprocessing.add_pathology_one_hot`). Reads `pathologies_filtered.csv`. Groups rare pathologies under `pathology_other`. |
 | — | `transform_all_columns_to_float()` | Skips `patient_id`, `date_of_birth`, `timestamp`. |
+| 0 | _(inline)_ | Drops `EXCLUDED_VARIABLES` (`peep`, reviewer request) before the missing-value steps, so it cannot cause row drops or affect imputation distances. |
 | 1 | `delete_negative_icp_values()` | Removes rows where ICP < 0. |
 | 2 | _(inline)_ | `groupby('patient_id').filter(len > 2)` — drops patients with ≤2 measurements. |
 | 3 | `drop_rows_with_null_target_column()` | Drops rows with null `icp`. |
 | 4 | `standardize_missing_values()` | Replaces `[-1, '-1', '--', '-', '.', '/']` with `NaN`. Prints per-column missing table. |
-| 5 | `drop_columns_with_high_missing_values()` | Config-gated. Drops `respiration_rate` (always), then rows with >1 null. |
-| 6 | `clean_icp_outliers()` | Z-score threshold = 7 (domain-appropriate for medical data). |
+| 5 | `clean_physiologic_outliers()` | Sets values outside `PHYSIOLOGIC_RANGES` to `NaN` (e.g. pH 6.5–8.0, CPP −20–200). Columns that are absent are skipped. |
+| 6 | `drop_columns_with_high_missing_values()` | Config-gated. Drops `respiration_rate` (always), then rows with >1 null. |
+| 7 | `clean_icp_outliers()` | Z-score threshold = 7 (domain-appropriate for medical data). |
+| 8 | `delete_icp_values_above_device_range()` | Removes rows with ICP > `ICP_DEVICE_RANGE_MAX` (100 mmHg, AAMI device range). Runs after step 7, so the Z-score statistics are unchanged. |
 
 **Post-split methods (called from `main.py`):**
 
@@ -179,17 +187,14 @@ Multi-step cleaning, then (post-split) causal imputation and feature engineering
 
 Creates lagged features: for each row at time T and lag L, the feature value is the **mean** of all readings in the window `[T − L hours, T − (L−1) hours)`.
 
-**Main method:** `process_data(data, hours=5, columns_to_lag=None, mode="regression")`
+**Main method:** `process_data(data, hours=5, columns_to_lag=None, drop_lagged_null_rows=True)`
 
 **Variables lagged:**
-`icp`, `temperature`, `mean_blood_pressure`, `cpp`, `glucose`, `haemoglobin`, `heart_rate`, `paco2`, `pao2`, `peep`, `ph`, `spo2`
+`icp`, `temperature`, `mean_blood_pressure`, `cpp`, `glucose`, `haemoglobin`, `heart_rate`, `paco2`, `pao2`, `ph`, `spo2`
 
 **Output columns:** `{variable}_lag_1` through `{variable}_lag_{hours}` (e.g. `icp_lag_1` … `icp_lag_5`)
 
-**Null handling in lags:** if no readings exist in a window, the lag is `NaN`. Mode-dependent handling after creation:
-
-- `regression`: auto-drops rows with null lags
-- `classification`: asks the user
+**Null handling in lags:** if no readings exist in a window, the lag is `NaN`. Rows with null lags are dropped when `preprocessing.drop_lagged_null_rows = true` (both modes). Patients with records too short for the full lookback window therefore contribute no rows.
 
 Each patient is processed in isolation (no cross-patient lag contamination).
 
@@ -209,18 +214,18 @@ Converts continuous ICP into a binary classification target.
 
 Trains and evaluates six classifier variants, runs pairwise statistical tests.
 
-**`run_pipeline(X_train, X_test, y_train, y_test)`** — evaluates:
+**`run_pipeline(X_train, X_val, X_test, y_train, y_val, y_test)`** — evaluates every variant on the validation split (comparison), then once on the test split (final report):
 
 | Variant | Model | Features |
 |---------|-------|----------|
 | LaggedICP Baseline | Mean of icp_lag_1…5 ≥ 15 | icp lags only |
 | LatestICP Baseline | icp_lag_1 > 15 | icp_lag_1 only |
 | XGBoost (default) | XGBoost | all lag features |
-| XGBoost (tuned) | XGBoost + custom params | all lag features |
+| XGBoost (configured) | XGBoost + custom params | all lag features |
 | XGBoost (lag-only) | XGBoost | icp_lag_* only |
-| XGBoost (lag-only, tuned) | XGBoost + custom params | icp_lag_* only |
+| XGBoost (lag-only, configured) | XGBoost + custom params | icp_lag_* only |
 
-**XGBoost tuned parameters:**
+**XGBoost configured parameters** (one fixed setting; no hyperparameter search). The default variants use XGBoost defaults, without class weighting:
 
 ```python
 {
@@ -239,15 +244,15 @@ Trains and evaluates six classifier variants, runs pairwise statistical tests.
 **Evaluation:**
 
 - Confusion matrix, classification report (precision/recall/F1 for positive class)
-- McNemar's exact test for every model pair (15 comparisons)
+- McNemar's exact test for every model pair (15 comparisons). It counts each row as independent, so the p-values are optimistic (rows of one patient are correlated).
 - Case analysis: rows where XGBoost is correct and baseline is wrong
 
 **`run_cross_validation_pipeline(X, y, n_splits=10)`:**
 
-- `StratifiedGroupKFold` grouped by `patient_id` — prevents patient data leakage
-- Stratified on `icp_binary`
+- `StratifiedGroupKFold(n_splits=10, shuffle=True, random_state=42)` grouped by `patient_id` — prevents patient data leakage
+- Stratified on `icp_binary`; runs on the training split only (`classification.run_cross_validation`)
 
-**Feature importance:** saves `xgboost_feature_importance.png` to project root.
+**Feature importance:** gain-based plots for three XGBoost variants. All three are saved to the same file, `xgboost_feature_importance.png` in the working directory, so only the last one (lag-only, configured) remains.
 
 ---
 
@@ -276,37 +281,48 @@ Wraps XGBoost with configurable model parameters and a pluggable feature selecto
 
 ### `regression/regression_pipeline.py` — `RegressionPipeline`
 
-Trains and evaluates four regressors across four feature configurations.
+Tunes, trains and evaluates seven regressors. Every model is a scikit-learn estimator; the linear models are `Pipeline(StandardScaler, model)`, so the scaler is fitted on exactly the data the model is fitted on (including each CV training fold). Model inputs are the `*_lag_*` columns; `patient_id` and `timestamp` are excluded.
 
 **Models:**
 
-| Model | Class | Scaling |
-|-------|-------|---------|
-| Linear Regression | `LinearRegression()` | StandardScaler |
-| Ridge Regression | `Ridge()` | StandardScaler |
-| Lasso Regression | `Lasso(alpha=0.1)` | StandardScaler |
-| Baseline History | `BaselineHistoryRegression` | None |
+| Model | Estimator | Scaling | Tuning grid (validation split) |
+|-------|-----------|---------|-------------------------------|
+| Linear Regression | `LinearRegression()` | StandardScaler | — |
+| Ridge Regression | `Ridge()` | StandardScaler | `alpha` ∈ {0.01, 0.1, 1, 10, 100} |
+| Lasso Regression | `Lasso()` | StandardScaler | `alpha` ∈ {0.001, 0.01, 0.1, 1} |
+| Random Forest | `RandomForestRegressor(n_estimators=300)` | None | `max_depth` ∈ {None, 10, 20}, `min_samples_leaf` ∈ {1, 5, 20}, `max_features` ∈ {1.0, "sqrt"} |
+| XGBoost | `XGBRegressor()` | None | `n_estimators` ∈ {200, 500}, `max_depth` ∈ {3, 6, 9}, `learning_rate` ∈ {0.03, 0.1}, `subsample` ∈ {0.8, 1.0} |
+| Baseline History | `BaselineHistoryRegression` | None | — |
+| Baseline Mean | `BaselineMeanRegression` | None | — |
 
-**Feature configurations evaluated:**
+**`run_pipeline(X_train, X_val, X_test, y_train, y_val, y_test)` steps:**
 
-| Config | Description |
-|--------|-------------|
+1. Grid search per model on the validation split (lowest RMSE); the selected parameters are used for all later steps.
+2. Train on the training split; evaluate once on the test split: MSE, MAE, RMSE, R².
+3. Test metrics (RMSE, MAE) stratified by true ICP: ≤ 20, 20–30, > 30 mmHg.
+4. Wilcoxon signed-rank test on **per-patient** MAE (test split) for the pairs in `WILCOXON_PAIRS`: RF vs. LR, XGB vs. LR, LR vs. Baseline History, RF vs. Baseline History.
+5. Signed coefficients (Linear, Lasso) and permutation importance on the validation split (RF, XGB).
+6. Patient-grouped CV on the training split: `GroupKFold(n_splits=10)`; mean, SD and worst-fold RMSE.
+7. Feature configurations, compared on the validation split:
+
+| Config | Columns |
+|--------|---------|
 | Full Dataset | All lag columns |
-| Lags 1-3-5 | Only lag indices 1, 3, 5 per variable |
-| Drop PEEP/PH/SpO₂ | Excludes those three variables and their lags |
-| Extensive Drop | Drops 11 variables: spo2, heart_rate, paco2, pao2, temperature, ph, peep, glucose, haemoglobin, cpp, mean_blood_pressure (and all their lags) |
-
-**Evaluation metrics:** MSE, MAE, RMSE, model score (R²-like accuracy %)
-
-**Cross-validation:** `KFold(n_splits=10, shuffle=True, random_state=42)`, scored with RMSE.
+| Lags 1-3-5 | Lag indices 1, 3, 5 of every variable |
+| Drop PH, SPO2 | All lags except those of `ph` and `spo2` |
+| ICP Lags Only | `icp_lag_1` … `icp_lag_N` |
+| Lags + Pathology | All lag columns + `pathology_*` one-hot columns |
 
 **Outputs returned:**
 
 ```python
 {
-    "evaluation_results":       pd.DataFrame,  # per-model MSE/MAE/RMSE/Accuracy
-    "cross_validation_results": pd.DataFrame,  # per-model mean CV RMSE
-    "feature_config_results":   pd.DataFrame   # RMSE per model × feature config
+    "tuning_results":           pd.DataFrame,  # selected parameters + validation RMSE
+    "evaluation_results":       pd.DataFrame,  # test MSE/MAE/RMSE/R² per model
+    "icp_range_results":        pd.DataFrame,  # test RMSE/MAE per true-ICP range
+    "wilcoxon_results":         pd.DataFrame,  # per-patient MAE comparisons
+    "cross_validation_results": pd.DataFrame,  # CV mean/SD/worst-fold RMSE
+    "feature_config_results":   pd.DataFrame   # validation RMSE per model × configuration
 }
 ```
 
@@ -314,23 +330,23 @@ Trains and evaluates four regressors across four feature configurations.
 
 ### `regression/baseline_history_regression.py` — `BaselineHistoryRegression`
 
-For each test row, finds the most recent ICP reading for that patient **before** the test timestamp in the training set. Falls back to training-set global mean ICP when no prior data exists. sklearn-compatible.
+Persistence baseline: predicts the most recent past ICP of the same row (`icp_lag_1`, or the lowest available ICP lag). Falls back to the training-set mean ICP only if no `icp_lag_*` column exists. sklearn-compatible.
 
 ---
 
 ### `regression/baseline_mean_regression.py` — `BaselineMeanRegression`
 
-For each test row, computes the mean of all ICP readings for that patient **before** the test timestamp. Falls back to global mean.
+Predicts the mean of the row's `icp_lag_*` values (the previous N hours). Same fallback as above.
 
 ---
 
 ### `generate_descriptive_stats.py`
 
-Standalone script (not part of the main pipeline). Reads `cleaned_df_classification.csv` and prints:
+Standalone script (not part of the main pipeline). Reads `cleaned_df_classification.csv` (run the classification pipeline first) and prints:
 
 1. **Cohort summary** — total observations, unique patients, median observations per patient
 2. **Patient demographics** — age at admission by age band: `<18`, `18–34`, `35–44`, `45–54`, `55–64`, `65–74`, `75–84`, `85+`
-3. **Clinical variable statistics** — mean, std, median, missing % for each of the 13 clinical variables
+3. **Clinical variable statistics** — mean, std, median, missing % for the clinical variables present in the file. `respiration_rate` and `peep` are listed in `CLINICAL_COLUMNS` (labelled "dropped"), but both are removed during cleaning, so they are skipped. PEEP statistics need `final_data.csv`.
 
 Age at admission is computed as `first_measurement_timestamp − date_of_birth`.
 
@@ -353,13 +369,17 @@ DataFramePrinter.print_dataframe_tabulated(df, title="My Title")
 |----------|----------|-------|---------|
 | `binary_data_processor.py` | `ICP_BINARY_THRESHOLD` | 22 mmHg | Clinically significant ICP elevation |
 | `data_pre_processor.py` | Z-score threshold | 7 | ICP outlier removal (domain-specific) |
+| `data_pre_processor.py` | `ICP_DEVICE_RANGE_MAX` | 100 mmHg | Rows above are removed (AAMI device range) |
+| `data_pre_processor.py` | `EXCLUDED_VARIABLES` | `['peep']` | Variables dropped before cleaning (reviewer request) |
+| `data_pre_processor.py` | `PHYSIOLOGIC_RANGES` | per variable | Out-of-range values set to NaN |
 | `data_pre_processor.py` | Missing value sentinels | `[-1, '--', '-', '.', '/']` | Normalized to NaN |
 | `data_pre_processor.py` | `PATHOLOGIES_GROUPED_AS_OTHER` | 5 pathologies | Rare diagnoses consolidated |
 | `time_series_processor.py` | `hours` (default) | 5 | Lag feature lookback window |
 | `data_pre_processor.py` | causal 1-NN imputation | 1 | Single nearest *past* train donor; no future/cross-split leakage |
 | `classification_pipeline.py` | `scale_pos_weight` | 6 | Approximate class imbalance ratio |
 | `classification_pipeline.py` | Baseline decision threshold | 15 mmHg | Rule-based classifier cutoff |
-| `regression_pipeline.py` | Lasso alpha | 0.1 | L1 regularisation strength |
+| `regression_pipeline.py` | `param_grid` per model | see Regression | Grid search on the validation split |
+| `regression_pipeline.py` | `ICP_RANGE_BINS` | ≤20, 20–30, >30 mmHg | Stratified test metrics |
 | `regression_pipeline.py` | `GroupKFold` splits | 10 | Patient-grouped CV folds (train only) |
 | `main.py` / `config.toml` | Train/val/test split | 60/20/20 | Patient-level; select on val, report on test |
 | `main.py` | `random_state` | 42 | Reproducibility |
@@ -383,6 +403,8 @@ The pipeline caches intermediate results to avoid reprocessing. Each cached file
 
 **To force a re-run of any step, delete the corresponding CSV file.** The `clean_generated_files.sh` script at the project root removes all generated files.
 
+**Warning:** the file names do not include the cohort or the code version. Run `clean_generated_files.sh` after any change in `DataParser`/`DataPreProcessor` and before changing `parsing.filter_by_pathology`; otherwise the run silently reuses stale data.
+
 ---
 
 ## Configuration (no interactive prompts)
@@ -391,13 +413,15 @@ The pipeline is fully **non-interactive** — all decisions come from `config.to
 from `config.example.toml` on first run, read by `helper/config.py`). The former `input()`
 calls have been removed. CLI `--mode`/`--hours` override the `[run]` section.
 
-| Config key | Replaces prompt | Default |
+| Config key | Replaces prompt | Template value (`config.example.toml`) |
 |------------|-----------------|---------|
 | `parsing.filter_by_pathology` | Filter by pathology? | `""` (all) |
 | `parsing.apply_instance_filtering` | Proceed with instance filtering? | `true` |
-| `preprocessing.add_pathology_one_hot` | Add one-hot pathology columns? | `false` |
+| `preprocessing.add_pathology_one_hot` | Add one-hot pathology columns? | `true` |
 | `preprocessing.drop_high_missing_columns` | Drop columns with >1 missing? | `true` |
 | `preprocessing.impute_missing_values` | Impute missing values? | `true` |
 | `preprocessing.drop_lagged_null_rows` | Drop rows with null lags? | `true` |
-| `classification.run_cross_validation` | Run 10-fold cross-validation? | `false` |
+| `classification.run_cross_validation` | Run 10-fold cross-validation? | `true` |
 | `split.test_size` / `split.val_size` | — (new) three-way split fractions | `0.2` / `0.2` |
+
+A key that is missing from `config.toml` falls back to the default in `helper/config.py` (`add_pathology_one_hot` and `run_cross_validation` fall back to `false`).
