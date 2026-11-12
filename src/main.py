@@ -109,11 +109,8 @@ def build_split_datasets(cleaned_df, data_pre_processor, config):
     print(f"Patients — train: {len(train_patients)}, validation: {len(val_patients)}, test: {len(test_patients)}")
 
     # Causal, train-fit imputation (no future donors, no cross-split leakage).
-    if config.impute_missing_values:
-        print("\n~~~~ Imputing missing values (causal, train-fit) ~~~~")
-        train_raw, val_raw, test_raw = data_pre_processor.causal_knn_impute(train_raw, val_raw, test_raw)
-    else:
-        print("\nImputation disabled (preprocessing.impute_missing_values = false).")
+    print("\n~~~~ Imputing missing values (causal, train-fit) ~~~~")
+    train_raw, val_raw, test_raw = data_pre_processor.causal_knn_impute(train_raw, val_raw, test_raw)
 
     # Lagged features per split (lags are within-patient, so per-split == whole-frame).
     print("\n~~~~ Creating lagged features per split ~~~~")
