@@ -161,7 +161,6 @@ val_size  = 0.2
 [preprocessing]
 add_pathology_one_hot     = true  # add one-hot encoded pathology columns
 drop_high_missing_columns = true   # drop respiration_rate + rows with >1 missing value
-impute_missing_values     = true    # causal 1-NN impute of rows with exactly 1 missing value (manuscript setting)
 drop_lagged_null_rows     = true   # drop rows with null values in lagged columns
 
 [parsing]

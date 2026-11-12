@@ -22,7 +22,6 @@ class AppConfig:
     val_size: float
     add_pathology_one_hot: bool
     drop_high_missing_columns: bool
-    impute_missing_values: bool
     drop_lagged_null_rows: bool
     filter_by_pathology: str
     apply_instance_filtering: bool
@@ -86,7 +85,6 @@ def load_config(cli_mode=None, cli_hours=None):
         val_size=val_size,
         add_pathology_one_hot=preprocessing.get("add_pathology_one_hot", False),
         drop_high_missing_columns=preprocessing.get("drop_high_missing_columns", True),
-        impute_missing_values=preprocessing.get("impute_missing_values", True),
         drop_lagged_null_rows=preprocessing.get("drop_lagged_null_rows", True),
         filter_by_pathology=parsing.get("filter_by_pathology", ""),
         apply_instance_filtering=parsing.get("apply_instance_filtering", True),

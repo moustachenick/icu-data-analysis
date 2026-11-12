@@ -419,7 +419,6 @@ calls have been removed. CLI `--mode`/`--hours` override the `[run]` section.
 | `parsing.apply_instance_filtering` | Proceed with instance filtering? | `true` |
 | `preprocessing.add_pathology_one_hot` | Add one-hot pathology columns? | `true` |
 | `preprocessing.drop_high_missing_columns` | Drop columns with >1 missing? | `true` |
-| `preprocessing.impute_missing_values` | Impute missing values? | `true` |
 | `preprocessing.drop_lagged_null_rows` | Drop rows with null lags? | `true` |
 | `classification.run_cross_validation` | Run 10-fold cross-validation? | `true` |
 | `split.test_size` / `split.val_size` | — (new) three-way split fractions | `0.2` / `0.2` |
