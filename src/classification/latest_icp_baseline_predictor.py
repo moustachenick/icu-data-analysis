@@ -1,13 +1,15 @@
 from sklearn.metrics import classification_report, confusion_matrix
 import numpy as np
 
+from data_parser.binary_data_processor import ICP_BINARY_THRESHOLD
+
 class LatestICPBaselinePredictor:
     """
     Real-life like baseline predictor using the latest ICP value (icp_lag_1).
-    If icp_lag_1 exceeds a specified threshold (e.g. 15 or 18), predict abnormal (1), else normal (0).
+    If icp_lag_1 exceeds a specified threshold, predict abnormal (1), else normal (0).
     """
 
-    def __init__(self, icp_lag_col="icp_lag_1", decision_threshold=15):
+    def __init__(self, icp_lag_col="icp_lag_1", decision_threshold=ICP_BINARY_THRESHOLD):
         """
         Args:
             icp_lag_col (str): The lag column to use (typically 'icp_lag_1').
@@ -27,7 +29,7 @@ class LatestICPBaselinePredictor:
         if "patient_id" not in X_test.columns or "timestamp" not in X_test.columns:
             raise ValueError("Missing 'patient_id' or 'timestamp' in X_test for McNemar comparison.")
 
-        y_pred = (X_test[self.icp_lag_col] > self.threshold).astype(int)
+        y_pred = (X_test[self.icp_lag_col] >= self.threshold).astype(int)
 
         return {
             'name': 'LatestICPBaselinePredictor',

@@ -1,8 +1,12 @@
 import os
+import itertools
 import pandas as pd
 from classification.latest_icp_baseline_predictor import LatestICPBaselinePredictor
 from classification.lagged_icp_baseline_predictor import LaggedICPBaselinePredictor
 from classification.xgboost_classification_predictor import XGBoostClassificationPredictor
+from classification.episode_transitions import (
+    ONSET, STABLE, assign_transition_categories, low_before_mask, onset_summary_table, restrict_result_to_rows,
+)
 from data_parser.binary_data_processor import BinaryDataProcessor
 from helper.data_frame_printer import DataFramePrinter
 from sklearn.model_selection import StratifiedGroupKFold
@@ -177,6 +181,34 @@ class ClassificationPipeline:
         self.count_cases_where_xgb_correct_baseline_wrong(res_xgb_lagonly, res_latest, "XGBoost LagOnly vs Latest")
         self.count_cases_where_xgb_correct_baseline_wrong(res_xgb_lagonly_params, res_latest, "XGBoost LagOnly+Params vs Latest")
 
+        # Extra evaluation on the rows whose preceding hour was low (TEST only, descriptive).
+        # It reuses the predictions above: nothing is retrained and nothing is used for model selection.
+        if holdout_name == "TEST":
+            y_all = np.asarray(y_holdout)
+            for res in results:
+                if not np.array_equal(res["y_true"], y_all):
+                    raise ValueError(f"{res['name']}: y_true is not aligned with the holdout rows.")
+
+            categories = assign_transition_categories(X_holdout["icp_lag_1"], y_all)
+            low_before_rows = low_before_mask(categories)
+            onset_results = [restrict_result_to_rows(res, low_before_rows) for res in results]
+
+            print("\n=== ONSET EVALUATION: rows whose preceding hour was low ===")
+            print(f"Onset rows (low -> high, positive): {np.sum(categories == ONSET)}")
+            print(f"Stable rows (low -> low, negative): {np.sum(categories == STABLE)}")
+            DataFramePrinter.print_dataframe_tabulated(
+                onset_summary_table(onset_results),
+                "Onset Evaluation (TEST): rows whose preceding hour was low"
+            )
+
+            print("\n Running McNemar's Test Between Models (onset evaluation)...\n")
+            onset_mcnemar_rows = []
+            for result_a, result_b in itertools.combinations(onset_results, 2):
+                label = f"{result_a['name']} vs {result_b['name']}"
+                p_value = self.run_mcnemar_test(result_a, result_b, label=label)
+                onset_mcnemar_rows.append([label, format_p(p_value), "✓" if p_value < 0.05 else "✗"])
+            print(tabulate(onset_mcnemar_rows, headers=["Comparison", "p-value", "Significant?"], tablefmt="fancy_grid"))
+            
         # Plot feature importances (only for the final test report to avoid overwriting the PNG twice).
         if plot:
             self.plot_xgboost_feature_importances(xg_boost_predictor.model)
@@ -241,7 +273,7 @@ class ClassificationPipeline:
         full_data = pd.concat([X, y], axis=1)
 
         # Create binary labels ONLY for stratification
-        y_stratify = (y >= 22).astype(int)
+        y_stratify = y.astype(int)
 
         # Prepare StratifiedKFold
         sgkf = StratifiedGroupKFold(n_splits=10, shuffle=True, random_state=42)

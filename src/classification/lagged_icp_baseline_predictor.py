@@ -1,10 +1,12 @@
 import pandas as pd
 from sklearn.metrics import classification_report, confusion_matrix
 
+from data_parser.binary_data_processor import ICP_BINARY_THRESHOLD
+
 
 class LaggedICPBaselinePredictor:
     """
-    A simplified rule-based baseline predictor for Intracranial Pressure (ICP) classification.
+    A simplified   baseline predictor for Intracranial Pressure (ICP) classification.
 
     This predictor computes the row-wise mean of a selected number of lagged ICP values
     (e.g., icp_lag_1 to icp_lag_5) for each sample. If the average exceeds a specified threshold,
@@ -18,7 +20,7 @@ class LaggedICPBaselinePredictor:
         max_lag (int): The number of lagged ICP features to include (starting from icp_lag_1).
     """
 
-    def __init__(self, decision_threshold=15, max_lag=5):
+    def __init__(self, decision_threshold=ICP_BINARY_THRESHOLD, max_lag=5):
         """
         Initialize the baseline predictor.
 
