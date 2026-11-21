@@ -7,7 +7,8 @@ Classification pipeline to predict Intracranial Pressure (ICP).
 
 - **Regression** predicts the ICP value (mmHg) with Linear, Ridge and Lasso regression, Random Forest and XGBoost,
   compared with two rule-based baselines.
-- **Classification** predicts elevated ICP (≥ 22 mmHg) with XGBoost variants, compared with two rule-based baselines.
+- **Classification** predicts elevated ICP (≥ 22 mmHg) with default and tuned XGBoost variants, compared with
+  persistence (last ICP ≥ 22 mmHg) and a clinical rule (last ICP ≥ 15 mmHg).
 
 For a file-by-file technical reference, see [`notes/summary.md`](notes/summary.md). For the order of the processing
 stages and the safeguards against information leakage, see [`notes/pipeline_explanation.md`](notes/pipeline_explanation.md).

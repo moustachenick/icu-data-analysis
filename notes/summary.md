@@ -212,59 +212,59 @@ Converts continuous ICP into a binary classification target.
 
 ### `classification/classification_pipeline.py` — `ClassificationPipeline`
 
-Trains and evaluates six classifier variants, runs pairwise statistical tests.
+Tunes, trains and evaluates seven predictors: three rule-based baselines and four XGBoost variants.
 
-**`run_pipeline(X_train, X_val, X_test, y_train, y_val, y_test)`** — evaluates every variant on the validation split (comparison), then once on the test split (final report):
+**`run_pipeline(X_train, X_val, X_test, y_train, y_val, y_test)`:**
 
-| Variant | Model | Features |
-|---------|-------|----------|
-| LaggedICP Baseline | Mean of icp_lag_1…5 ≥ 15 | icp lags only |
-| LatestICP Baseline | icp_lag_1 > 15 | icp_lag_1 only |
-| XGBoost (default) | XGBoost | all lag features |
-| XGBoost (configured) | XGBoost + custom params | all lag features |
-| XGBoost (lag-only) | XGBoost | icp_lag_* only |
-| XGBoost (lag-only, configured) | XGBoost + custom params | icp_lag_* only |
+1. Grid search on the validation split for the two tuned XGBoost variants, selected by validation PR-AUC (threshold-free; suited to the ~5 % positive rate).
+2. Every predictor is evaluated on the validation split (comparison), then once on the test split (final report).
+3. Matched sensitivity on the test split (see below).
 
-**XGBoost configured parameters** (one fixed setting; no hyperparameter search). The default variants use XGBoost defaults, without class weighting:
+| Variant | Rule or model | Features |
+|---------|---------------|----------|
+| LaggedICP Baseline | Mean of icp_lag_1…5 ≥ 22 | ICP lags |
+| LatestICP Baseline (persistence) | icp_lag_1 ≥ 22 — the statistical baseline | icp_lag_1 |
+| LatestICP Baseline 15 (clinical rule) | icp_lag_1 ≥ 15 — the bedside "at risk" rule (normal ICP 7–15 mmHg) | icp_lag_1 |
+| XGBoost (default) | XGBoost defaults, no class weighting | all lag features |
+| XGBoost (tuned) | `xg_boost_model_params` + tuned values | all lag features |
+| XGBoost (lag-only) | XGBoost defaults | icp_lag_* only |
+| XGBoost (lag-only, tuned) | `xg_boost_model_params` + tuned values | icp_lag_* only |
 
-```python
-{
-    'booster': 'gbtree',
-    'objective': 'binary:logistic',
-    'eval_metric': 'logloss',
-    'max_depth': 6,
-    'learning_rate': 0.05,
-    'n_estimators': 200,
-    'scale_pos_weight': 6,   # reflects ~6:1 class imbalance
-    'subsample': 0.8,
-    'colsample_bytree': 0.8
-}
-```
+**Fixed XGBoost settings** (`xg_boost_model_params`): `booster='gbtree'`, `objective='binary:logistic'`, `eval_metric='logloss'`, `colsample_bytree=0.8`.
 
-**Evaluation:**
+**Tuning grid** (`xgb_param_grid`, 72 combinations per variant): `max_depth` ∈ {3, 6, 9}, `learning_rate` ∈ {0.03, 0.1}, `n_estimators` ∈ {200, 500}, `subsample` ∈ {0.8, 1.0}, `scale_pos_weight` ∈ {1, 6, 18}. The positive class is ~5 % of rows (~18:1).
 
-- Confusion matrix, classification report (precision/recall/F1 for positive class)
-- McNemar's exact test for every model pair (15 comparisons). It counts each row as independent, so the p-values are optimistic (rows of one patient are correlated).
-- Case analysis: rows where XGBoost is correct and baseline is wrong
+**Evaluation (validation and test):**
+
+- Accuracy, precision, recall and F1 for the positive class at the 0.5 threshold (rules: their own threshold).
+- AUROC and PR-AUC from each predictor's score: the probability for XGBoost, the raw ICP value for the rules. The two `LatestICP` rules share the same score, so their AUROC and PR-AUC are equal.
+- McNemar's exact test for every pair of predictors (21 pairs). It counts each row as independent, so the p-values are optimistic (rows of one patient are correlated). A significant p-value shows that two models make different errors, not that one is better.
+- Case analysis: rows where XGBoost is correct and a baseline is wrong.
+
+**Test only:**
+
+- **Onset evaluation** (`episode_transitions.py`): only the rows whose preceding hour was low (`icp_lag_1` < 22). Positive = onset (low → high), negative = stable (low → low). Reports caught onsets, false alarms, F1, AUROC and PR-AUC. Persistence can never predict an onset on these rows.
+- **Matched sensitivity** (`_report_matched_sensitivity`): for each XGBoost variant, a probability threshold is chosen on **validation** so that the model catches the same share of cases as the clinical rule catches on validation (`threshold_for_recall`). The threshold is applied once to test, and the report shows caught cases and false alarms against the clinical rule. The main rule is `ICP >= 15`; `ICP > 15` is reported as a sensitivity analysis, because many ICP values are exactly 15 and the result depends on this choice.
 
 **`run_cross_validation_pipeline(X, y, n_splits=10)`:**
 
-- `StratifiedGroupKFold(n_splits=10, shuffle=True, random_state=42)` grouped by `patient_id` — prevents patient data leakage
-- Stratified on `icp_binary`; runs on the training split only (`classification.run_cross_validation`)
+- Needs `run_pipeline()` first: it uses the tuned parameters.
+- `StratifiedGroupKFold(n_splits=10, shuffle=True, random_state=42)` grouped by `patient_id`, stratified on `icp_binary`; runs on the training split only (`classification.run_cross_validation`).
+- Reports mean ± SD of accuracy, precision, recall, F1, AUROC and PR-AUC.
 
-**Feature importance:** gain-based plots for three XGBoost variants, saved in the working directory as `xgboost_feature_importance.png` (default), `xgboost_feature_importance_lag_only.png` and `xgboost_feature_importance_lag_only_with_params.png`.
+**Feature importance:** gain-based plots, saved in the working directory as `xgboost_feature_importance.png` (default), `xgboost_feature_importance_lag_only.png` and `xgboost_feature_importance_lag_only_tuned.png` (ignored by git).
 
 ---
 
 ### `classification/lagged_icp_baseline_predictor.py` — `LaggedICPBaselinePredictor`
 
-Rule-based baseline. Predicts `1` if the row-wise mean of `icp_lag_1` … `icp_lag_5` ≥ `decision_threshold` (default: 15 mmHg).
+Rule-based baseline. Predicts `1` if the row-wise mean of `icp_lag_1` … `icp_lag_5` ≥ `decision_threshold` (default: `ICP_BINARY_THRESHOLD`, 22 mmHg). Score for AUROC/PR-AUC: the mean itself.
 
 ---
 
 ### `classification/latest_icp_baseline_predictor.py` — `LatestICPBaselinePredictor`
 
-Rule-based baseline. Predicts `1` if `icp_lag_1 > decision_threshold` (default: 15 mmHg).
+Rule-based baseline. Predicts `1` if `icp_lag_1 >= decision_threshold` (default: `ICP_BINARY_THRESHOLD`, 22 mmHg = persistence). The pipeline also uses it with `decision_threshold=15` and `name="LatestICPBaselinePredictor_15"` as the clinical rule. Score for AUROC/PR-AUC: `icp_lag_1`.
 
 ---
 
@@ -276,6 +276,7 @@ Wraps XGBoost with configurable model parameters and a pluggable feature selecto
 - **`lag_only_feature_selector`:** only `icp_lag_*` columns
 - **Scaling:** `MinMaxScaler` fitted on training set, applied to test set
 - **Excluded from scaling/training:** `patient_id`, `date_of_birth`, `timestamp`
+- **Result:** `y_pred` at the 0.5 threshold and `y_score` (the predicted probability); variants with model parameters are named `…_tuned`
 
 ---
 
@@ -376,8 +377,8 @@ DataFramePrinter.print_dataframe_tabulated(df, title="My Title")
 | `data_pre_processor.py` | `PATHOLOGIES_GROUPED_AS_OTHER` | 5 pathologies | Rare diagnoses consolidated |
 | `time_series_processor.py` | `hours` (default) | 5 | Lag feature lookback window |
 | `data_pre_processor.py` | causal 1-NN imputation | 1 | Single nearest *past* train donor; no future/cross-split leakage |
-| `classification_pipeline.py` | `scale_pos_weight` | 6 | Approximate class imbalance ratio |
-| `classification_pipeline.py` | Baseline decision threshold | 15 mmHg | Rule-based classifier cutoff |
+| `classification_pipeline.py` | `xgb_param_grid` | 72 combinations | XGBoost grid search on validation PR-AUC (incl. `scale_pos_weight` ∈ {1, 6, 18}) |
+| `classification_pipeline.py` | `CLINICAL_RULE_THRESHOLD` | 15 mmHg | Clinical baseline (`icp_lag_1 >= 15`); persistence uses 22 mmHg |
 | `regression_pipeline.py` | `param_grid` per model | see Regression | Grid search on the validation split |
 | `regression_pipeline.py` | `ICP_RANGE_BINS` | ≤20, 20–30, >30 mmHg | Stratified test metrics |
 | `regression_pipeline.py` | `GroupKFold` splits | 10 | Patient-grouped CV folds (train only) |

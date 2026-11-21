@@ -205,19 +205,19 @@ predicts the mean of the lagged ICP values over the previous N hours.
 
 ### 7.2 Classification (`ClassificationPipeline`)
 
-The classification pipeline (`src/classification/classification_pipeline.py`) evaluates six
-predictors. Two are rule-based baselines that emulate bedside decision making using only past
-ICP values: `LatestICPBaselinePredictor` classifies an observation as elevated when the most
-recent lagged ICP value (`icp_lag_1`) exceeds a decision threshold of 15 mmHg, and
-`LaggedICPBaselinePredictor` does so when the mean of the lagged ICP values (`icp_lag_1` to
-`icp_lag_5`) reaches the same threshold. The remaining four predictors are gradient-boosted
-decision-tree classifiers implemented with XGBoost (`XGBoostClassificationPredictor`),
-obtained by combining two parameter settings (default parameters versus a configured setting
-with maximum tree depth 6, learning rate 0.05, 200 estimators, subsample and column-sample
-fractions of 0.8, and a positive-class weight of 6 to reflect the approximately six-to-one
-class imbalance) with two feature sets (all lagged features versus the ICP-specific lagged
-features only). Features for the gradient-boosted models are scaled to the unit interval
-before fitting.
+The classification pipeline (`src/classification/classification_pipeline.py`) evaluates seven
+predictors. Three are rule-based baselines that use only past ICP values.
+`LatestICPBaselinePredictor` with the outcome threshold (`icp_lag_1` ≥ 22 mmHg) is the
+persistence baseline: it predicts that the state of the preceding hour continues. Because ICP
+changes slowly, this is the statistical baseline that a time-series model must beat.
+`LaggedICPBaselinePredictor` applies the same threshold to the mean of `icp_lag_1` to
+`icp_lag_5`. The clinical baseline (`LatestICPBaselinePredictor_15`, `icp_lag_1` ≥ 15 mmHg)
+emulates bedside practice, in which a patient is considered at risk once ICP reaches the upper
+limit of the normal range. The remaining four predictors are gradient-boosted decision-tree
+classifiers implemented with XGBoost (`XGBoostClassificationPredictor`), obtained by combining
+two parameter settings (default parameters versus tuned parameters) with two feature sets (all
+lagged features versus the ICP-specific lagged features only). Features for the gradient-boosted
+models are scaled to the unit interval before fitting.
 
 ## 8. Model selection and final evaluation
 
@@ -229,8 +229,19 @@ search that fits each combination on the training partition and keeps the one wi
 validation RMSE; five feature configurations (the full feature set, a reduced set retaining
 lags 1, 3, and 5, a set excluding pH and oxygen saturation, the lagged ICP values only, and the
 full set plus the pathology indicators) are then compared on the validation partition. For
-classification, the six predictors are compared on the validation partition. The **test**
-partition is read exactly once, at the end, to produce the final performance report.
+classification, the hyperparameters of the two tuned XGBoost variants (tree depth, learning
+rate, number of trees, subsample fraction, and positive-class weight) are selected by a grid
+search with the highest validation PR-AUC, and the seven predictors are compared on the
+validation partition. The **test** partition is read exactly once, at the end, to produce the
+final performance report.
+
+For the comparison with the clinical rule, the decision threshold of each XGBoost model is also
+set on the validation partition: it is the threshold at which the model catches the same
+proportion of elevated-ICP observations as the clinical rule catches on the validation
+partition. This threshold is then applied once to the test partition, where the false alarms of
+the model and the rule are compared at the same sensitivity. The main clinical rule is ICP ≥ 15
+mmHg; ICP > 15 mmHg is reported as a sensitivity analysis, because many recorded ICP values
+equal 15 mmHg and the comparison depends on how the rule treats them.
 
 As an additional robustness assessment, patient-grouped cross-validation is performed on the
 training partition only. For regression this uses grouped k-fold cross-validation
@@ -239,11 +250,8 @@ uses grouped, stratified k-fold cross-validation (`StratifiedGroupKFold`, ten fo
 of the cross-validation procedure uses the validation or test partitions. In the regression
 cross-validation, the scaler of the linear models is refitted within each training fold.
 
-The classification models use fixed hyperparameters (a default and one configured setting)
-and no automated search is performed for them. If a search is introduced, it is to be carried
-out on the validation partition, or by means of the patient-grouped cross-validation on the
-training partition, as for regression, and never on the test partition, which is reserved for
-the single final evaluation.
+The cross-validation of the classification models uses the hyperparameters selected on the
+validation partition.
 
 ## 9. Statistical comparison of models
 
@@ -251,7 +259,8 @@ Pairwise differences between classifiers are assessed on a common evaluation par
 McNemar's test (exact form), applied to the discordant predictions of each pair of models.
 For each pair, the number of cases correctly classified by one model and misclassified by the
 other is tabulated, and the resulting p-value quantifies whether the difference in error
-patterns is statistically significant. The number of cases in which a gradient-boosted model
+patterns is statistically significant. A significant result shows that two models make
+different errors; it does not show that one model is better. The number of cases in which a gradient-boosted model
 classifies an elevated-ICP episode correctly while a baseline does not is additionally
 reported. McNemar's test treats each observation as independent; because consecutive
 observations of the same patient are correlated, its p-values are optimistic.
@@ -268,7 +277,12 @@ root mean squared error, and the coefficient of determination (R²), overall and
 the true ICP value (≤ 20, 20–30, and > 30 mmHg). Linear-model coefficients and the
 permutation importance of the tree-based models on the validation partition are reported for
 inspection. Classification performance is reported using accuracy, and the precision,
-recall, and F1-score for the elevated-ICP class, together with the confusion matrix.
+recall, and F1-score for the elevated-ICP class, together with the confusion matrix, and with
+the threshold-free AUROC and PR-AUC (the score of a rule-based baseline is the ICP value that it
+uses). On the test partition, two further analyses are reported: the comparison with the
+clinical rule at the same sensitivity (section 8), and an onset evaluation restricted to the
+observations whose preceding hour was below 22 mmHg, in which a positive observation is the
+start of an elevated-ICP episode.
 Gradient-boosted feature importances (by information gain) are also produced for inspection.
 
 ## 11. Reproducibility and configuration
@@ -291,7 +305,8 @@ which allows the output of successive runs to be compared directly.
 | Validation or test data influencing imputation | The donor pool is restricted to complete training rows | `causal_knn_impute` |
 | A future measurement reconstructing a past one | Donors are required to have a timestamp no later than the target | `causal_knn_impute` |
 | Selecting models or features by inspecting the test partition | Selection is performed on the validation partition; cross-validation uses the training partition | regression and classification pipelines |
-| Hyperparameter tuning on the test partition | Regression tuning uses the validation partition; the test partition is reserved for the single final evaluation | `build_split_datasets`, regression pipeline |
+| Hyperparameter tuning on the test partition | Regression and classification tuning use the validation partition; the test partition is reserved for the single final evaluation | `build_split_datasets`, pipelines |
+| Choosing decision thresholds on the test partition | The matched-sensitivity thresholds are set on the validation partition and applied once to the test partition | classification pipeline |
 | The held-out fold influencing feature scaling in cross-validation | The scaler is part of each linear model's pipeline and is refitted in each training fold | regression pipeline |
 
 ---
@@ -308,7 +323,8 @@ which allows the output of successive runs to be compared directly.
 | Binary label (classification) | `BinaryDataProcessor.create_binary_data` | `src/data_parser/binary_data_processor.py` |
 | Regression models | `RegressionPipeline.run_pipeline` | `src/regression/regression_pipeline.py` |
 | Classification models | `ClassificationPipeline.run_pipeline` | `src/classification/classification_pipeline.py` |
-| Hyperparameter tuning (validation) | `__tune_hyperparameters` | `src/regression/regression_pipeline.py` |
+| Hyperparameter tuning (validation) | `__tune_hyperparameters`, `_tune_xgboost` | regression and classification pipelines |
+| Matched sensitivity (thresholds from validation, report on test) | `_report_matched_sensitivity` | `src/classification/classification_pipeline.py` |
 | Selection (validation) and evaluation (test) | `__evaluate_with_feature_configs`, `__evaluate_models`, `__evaluate_by_icp_range`, `_evaluate_on_holdout` | regression and classification pipelines |
 | Per-patient Wilcoxon test (test) | `__compare_models_wilcoxon` | `src/regression/regression_pipeline.py` |
 | Cross-validation (training partition) | `__perform_cross_validation`, `run_cross_validation_pipeline` | regression and classification pipelines |
