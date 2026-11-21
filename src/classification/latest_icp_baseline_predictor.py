@@ -9,7 +9,8 @@ class LatestICPBaselinePredictor:
     If icp_lag_1 exceeds a specified threshold, predict abnormal (1), else normal (0).
     """
 
-    def __init__(self, icp_lag_col="icp_lag_1", decision_threshold=ICP_BINARY_THRESHOLD):
+    def __init__(self, icp_lag_col="icp_lag_1", decision_threshold=ICP_BINARY_THRESHOLD,
+                 name="LatestICPBaselinePredictor"):
         """
         Args:
             icp_lag_col (str): The lag column to use (typically 'icp_lag_1').
@@ -17,6 +18,7 @@ class LatestICPBaselinePredictor:
         """
         self.icp_lag_col = icp_lag_col
         self.threshold = decision_threshold
+        self.name = name
 
     def run_pipeline(self, X_test, y_test):
         """
@@ -32,10 +34,11 @@ class LatestICPBaselinePredictor:
         y_pred = (X_test[self.icp_lag_col] >= self.threshold).astype(int)
 
         return {
-            'name': 'LatestICPBaselinePredictor',
+            'name': self.name,
             'confusion_matrix': confusion_matrix(y_test, y_pred),
             'classification_report': classification_report(y_test, y_pred, output_dict=True, zero_division=0),
             'y_true': np.array(y_test),
             'y_pred': np.array(y_pred),
+            'y_score': X_test[self.icp_lag_col].to_numpy(dtype=float),
         }
 

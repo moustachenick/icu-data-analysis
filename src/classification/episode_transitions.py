@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.metrics import average_precision_score, classification_report, confusion_matrix, roc_auc_score
 
 from data_parser.binary_data_processor import ICP_BINARY_THRESHOLD
 
@@ -56,6 +56,7 @@ def restrict_result_to_rows(result, row_mask):
         ),
         "y_true": y_true,
         "y_pred": y_pred,
+        "y_score": np.asarray(result["y_score"])[row_mask],
     }
 
 
@@ -79,5 +80,7 @@ def onset_summary_table(subset_results):
             "Precision (1)": f"{report['precision']:.3f}",
             "F1-score (1)": f"{report['f1-score']:.3f}",
             "False alarm rate": f"{false_alarm_rate:.4f}",
+            "AUROC": f"{roc_auc_score(res['y_true'], res['y_score']):.3f}",
+            "PR-AUC": f"{average_precision_score(res['y_true'], res['y_score']):.3f}",
         })
     return pd.DataFrame(rows)

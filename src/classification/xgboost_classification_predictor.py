@@ -107,6 +107,7 @@ class XGBoostClassificationPredictor:
         model = xgb.XGBClassifier(**self.model_params)
         model.fit(X_train, y_train)
         y_pred = model.predict(X_test)
+        y_score = model.predict_proba(X_test)[:, 1]
 
         self.model = model
 
@@ -116,9 +117,9 @@ class XGBoostClassificationPredictor:
         if is_lagonly and is_default_params:
             name = 'XGBoostClassificationPredictor_lagonly'
         elif is_lagonly and not is_default_params:
-            name = 'XGBoostClassificationPredictor_lagonly_with_params'
+            name = 'XGBoostClassificationPredictor_lagonly_tuned'
         elif not is_lagonly and not is_default_params:
-            name = 'XGBoostClassificationPredictor_with_params'
+            name = 'XGBoostClassificationPredictor_tuned'
         else:
             name = 'XGBoostClassificationPredictor'
 
@@ -127,5 +128,6 @@ class XGBoostClassificationPredictor:
             'confusion_matrix': confusion_matrix(y_test, y_pred),
             'classification_report': classification_report(y_test, y_pred, output_dict=True, zero_division=0),
             'y_true': np.array(y_test),
-            'y_pred': np.array(y_pred)
+            'y_pred': np.array(y_pred),
+            'y_score': np.array(y_score),
         }

@@ -120,3 +120,5 @@ config.toml
 
 xgboost_feature_importance.png
 CLAUDE.md
+# Generated feature-importance plots (classification)
+xgboost_feature_importance*.png

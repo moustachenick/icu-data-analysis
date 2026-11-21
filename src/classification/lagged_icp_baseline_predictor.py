@@ -77,5 +77,6 @@ class LaggedICPBaselinePredictor:
                 y_true_bin, y_pred_bin, output_dict=True, zero_division=0
             ),
             'y_true': y_true_bin.to_numpy(),
-            'y_pred': y_pred_bin.to_numpy()
+            'y_pred': y_pred_bin.to_numpy(),
+            'y_score': icp_means.to_numpy(dtype=float),
         }
