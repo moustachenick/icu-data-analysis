@@ -190,12 +190,16 @@ if __name__ == "__main__":
                         help="Mode of operation: 'regression' or 'classification' (overrides config.toml)")
     parser.add_argument("--hours", type=int, default=None,
                         help="Number of hours to use for creating lag features (overrides config.toml)")
+    parser.add_argument("--pathology", type=str, default=None,
+                        help="Pathology to keep, e.g. 'TBI'; '' = all pathologies "
+                             "(overrides parsing.filter_by_pathology in config.toml)")
     args = parser.parse_args()
 
-    # All run decisions come from config.toml; --mode/--hours override it when provided.
-    config = load_config(cli_mode=args.mode, cli_hours=args.hours)
+    # All run decisions come from config.toml; --mode/--hours/--pathology override it when provided.
+    config = load_config(cli_mode=args.mode, cli_hours=args.hours, cli_pathology=args.pathology)
 
-    output_path = build_output_path(config.mode)
+    cohort = f"_{config.filter_by_pathology}" if config.filter_by_pathology else ""
+    output_path = build_output_path(f"{config.mode}{cohort}")
     with tee_output(output_path) as log_path:
         main(config)
         print(f"\nFull run output saved to: {log_path}")

@@ -172,11 +172,27 @@ apply_instance_filtering = true    # restrict dataset to patients in pathologies
 run_cross_validation = true       # run the 10-fold cross-validation after the main pipeline
 ```
 
-The CLI flags `--mode` and `--hours` override the corresponding `[run]` values, e.g.:
+The CLI flags `--mode` and `--hours` override the corresponding `[run]` values, and `--pathology` overrides
+`parsing.filter_by_pathology` (`""` = all pathologies), e.g.:
 
 ```shell
 python src/main.py --mode classification --hours 8
+python src/main.py --mode classification --pathology TBI
 ```
+
+A run with a pathology filter writes its output to `output/{mode}_{pathology}_{timestamp}.txt`, e.g.
+`output/classification_TBI_20261121-120556.txt`.
+
+### Full cohort and TBI subgroup in one command
+
+```shell
+./run_all_cohorts.sh                  # classification (default)
+./run_all_cohorts.sh regression
+```
+
+The script runs the full cohort and then the TBI subgroup. It runs `clean_generated_files.sh` before each run and at
+the end, because the cached CSVs do not depend on the cohort. Activate the Python environment first (e.g.
+`conda activate icu-data-analysis`); the script calls `python`.
 
 After the preprocessing steps, the datasets are created and saved to the `data/` directory (`{mode}` is
 `regression` or `classification`):

@@ -412,7 +412,9 @@ The pipeline caches intermediate results to avoid reprocessing. Each cached file
 
 The pipeline is fully **non-interactive** — all decisions come from `config.toml` (created
 from `config.example.toml` on first run, read by `helper/config.py`). The former `input()`
-calls have been removed. CLI `--mode`/`--hours` override the `[run]` section.
+calls have been removed. CLI `--mode`/`--hours` override the `[run]` section, and `--pathology` overrides
+`parsing.filter_by_pathology`. `run_all_cohorts.sh [mode]` runs the full cohort and the TBI subgroup, with
+`clean_generated_files.sh` before each run and at the end.
 
 | Config key | Replaces prompt | Template value (`config.example.toml`) |
 |------------|-----------------|---------|

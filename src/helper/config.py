@@ -28,17 +28,20 @@ class AppConfig:
     run_cross_validation: bool
 
 
-def load_config(cli_mode=None, cli_hours=None):
+def load_config(cli_mode=None, cli_hours=None, cli_pathology=None):
     """
     Load the run configuration from ``config.toml`` at the project root.
 
     If ``config.toml`` does not exist, it is created by copying the tracked
     ``config.example.toml`` template (the program only ever reads config, never writes
-    it). CLI overrides take precedence over the file for ``mode`` and ``hours``.
+    it). CLI overrides take precedence over the file for ``mode``, ``hours`` and
+    ``filter_by_pathology``.
 
     Args:
         cli_mode (str | None): Value of ``--mode`` if the user passed it, else None.
         cli_hours (int | None): Value of ``--hours`` if the user passed it, else None.
+        cli_pathology (str | None): Value of ``--pathology`` if the user passed it, else None
+            (an empty string means all pathologies).
 
     Returns:
         AppConfig: The resolved configuration.
@@ -86,7 +89,7 @@ def load_config(cli_mode=None, cli_hours=None):
         add_pathology_one_hot=preprocessing.get("add_pathology_one_hot", False),
         drop_high_missing_columns=preprocessing.get("drop_high_missing_columns", True),
         drop_lagged_null_rows=preprocessing.get("drop_lagged_null_rows", True),
-        filter_by_pathology=parsing.get("filter_by_pathology", ""),
+        filter_by_pathology=cli_pathology if cli_pathology is not None else parsing.get("filter_by_pathology", ""),
         apply_instance_filtering=parsing.get("apply_instance_filtering", True),
         run_cross_validation=classification.get("run_cross_validation", False),
     )
