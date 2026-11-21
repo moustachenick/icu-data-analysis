@@ -197,12 +197,16 @@ class ClassificationPipeline:
     def _report_matched_sensitivity(self, val_results, test_results):
         """
         Clinical comparison at the same sensitivity: each XGBoost threshold is chosen on VALIDATION
-        so that it catches the same share of cases as the clinical rule (ICP >= 15) catches on
-        VALIDATION; the threshold is then applied once to TEST.
+        so that it catches the same share of cases as the clinical rule catches on VALIDATION; the
+        threshold is then applied once to TEST. The main rule is ICP >= 15; ICP > 15 is a
+        sensitivity analysis, because the result depends on how the rule treats a value of 15.
         """
         val = {r["name"]: r for r in val_results}
         test = {r["name"]: r for r in test_results}
-        target_recall = val[CLINICAL_RULE_NAME]["classification_report"]["1"]["recall"]
+        rules = [
+            (f"ICP >= {CLINICAL_RULE_THRESHOLD}", lambda icp: icp >= CLINICAL_RULE_THRESHOLD),
+            (f"ICP > {CLINICAL_RULE_THRESHOLD} (sensitivity analysis)", lambda icp: icp > CLINICAL_RULE_THRESHOLD),
+        ]
 
         def operating_point(name, y_true, y_pred, threshold):
             tp = int(np.sum((y_pred == 1) & (y_true == 1)))
@@ -212,21 +216,31 @@ class ClassificationPipeline:
                     "Missed (FN)": fn, "False alarms (FP)": fp, "Recall (1)": f"{tp / (tp + fn):.3f}",
                     "Precision (1)": f"{tp / max(tp + fp, 1):.3f}"}
 
-        clinical = test[CLINICAL_RULE_NAME]
-        rows = [operating_point(CLINICAL_RULE_NAME, clinical["y_true"], clinical["y_pred"], f"ICP >= {CLINICAL_RULE_THRESHOLD}")]
-        for name, res in test.items():
-            if not name.startswith("XGBoost"):
-                continue
-            threshold = threshold_for_recall(val[name]["y_true"], val[name]["y_score"], target_recall)
-            rows.append(operating_point(name, res["y_true"], (res["y_score"] >= threshold).astype(int), f"{threshold:.4f}"))
+        tables = []
+        for rule_label, rule in rules:
+            # The clinical result's y_score is the raw icp_lag_1, so each rule is applied to it directly.
+            clinical_val, clinical_test = val[CLINICAL_RULE_NAME], test[CLINICAL_RULE_NAME]
+            val_pred = rule(clinical_val["y_score"])
+            target_recall = np.sum(val_pred & (clinical_val["y_true"] == 1)) / np.sum(clinical_val["y_true"] == 1)
 
-        table = pd.DataFrame(rows)
-        clinical_fp = rows[0]["False alarms (FP)"]
-        table["False alarms vs clinical rule"] = [f"{100 * (r['False alarms (FP)'] - clinical_fp) / clinical_fp:+.1f}%" for r in rows]
-        DataFramePrinter.print_dataframe_tabulated(
-            table, f"Matched Sensitivity (TEST): thresholds set on VALIDATION to the clinical rule's recall ({target_recall:.3f})"
-        )
-        return table
+            rows = [operating_point("Clinical rule", clinical_test["y_true"],
+                                    rule(clinical_test["y_score"]).astype(int), rule_label)]
+            for name, res in test.items():
+                if not name.startswith("XGBoost"):
+                    continue
+                threshold = threshold_for_recall(val[name]["y_true"], val[name]["y_score"], target_recall)
+                rows.append(operating_point(name, res["y_true"], (res["y_score"] >= threshold).astype(int), f"{threshold:.4f}"))
+
+            table = pd.DataFrame(rows)
+            clinical_fp = rows[0]["False alarms (FP)"]
+            table["False alarms vs clinical rule"] = [
+                f"{100 * (r['False alarms (FP)'] - clinical_fp) / clinical_fp:+.1f}%" for r in rows]
+            DataFramePrinter.print_dataframe_tabulated(
+                table, f"Matched Sensitivity (TEST), clinical rule {rule_label}: thresholds set on VALIDATION "
+                       f"to the rule's recall ({target_recall:.3f})"
+            )
+            tables.append(table)
+        return tables
 
     def run_mcnemar_test(self, model_a_result, model_b_result, label=""):
         y_true = model_a_result['y_true']

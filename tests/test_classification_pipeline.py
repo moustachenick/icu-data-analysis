@@ -85,6 +85,8 @@ class TestClassificationPipeline(unittest.TestCase):
         for res in results:
             self.assertEqual(len(res["y_score"]), len(res["y_true"]))
         self.assertIn("Matched Sensitivity (TEST)", output)
+        self.assertIn("clinical rule ICP >= 15", output)
+        self.assertIn("clinical rule ICP > 15 (sensitivity analysis)", output)
         self.assertIn("AUROC", output)
         self.assertIn("10-Fold Cross-Validation Results", output)
 
